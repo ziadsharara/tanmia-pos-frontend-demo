@@ -1,0 +1,7 @@
+node_modules
+dist
+.idea
+.env.local
+.env.*.local
+npm-debug.log*
+.playwright-cli/

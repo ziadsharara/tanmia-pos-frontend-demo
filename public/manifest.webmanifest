@@ -1,0 +1,20 @@
+{
+  "name": "عرض تنمية لنقاط البيع",
+  "short_name": "تنمية Demo",
+  "description": "نسخة عرض تجريبية تعمل داخل المتصفح",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/#new-invoice",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f6f6",
+  "theme_color": "#053241",
+  "icons": [
+    {
+      "src": "/tanmia-app.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
