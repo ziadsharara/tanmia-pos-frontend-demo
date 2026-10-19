@@ -28,7 +28,7 @@ export function resetDemoData() {
 function read() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY))
-    if (saved?.version === 4 && Array.isArray(saved.fairs) && Array.isArray(saved.books) && Array.isArray(saved.invoices)) return saved
+    if (saved?.version === 5 && Array.isArray(saved.fairs) && Array.isArray(saved.books) && Array.isArray(saved.invoices)) return saved
   } catch { /* Start with the seed if storage has been cleared or corrupted. */ }
   const seed = createSeedData()
   localStorage.setItem(STORAGE_KEY, JSON.stringify(seed))
@@ -66,9 +66,18 @@ function paged(items, page, size) {
 
 function summary(invoice) {
   const payments = invoice.libraryPayments || []
-  return { ...invoice, books: invoice.items.map(({ bookCode, bookName }) => ({ bookCode, bookName })),
+  return { ...invoice, books: invoice.items.map(({ bookCode, bookName, unitPrice, quantity }) => ({ bookCode, bookName, unitPrice, quantity })),
     cashCollectedAmount: payments.filter((payment) => payment.paymentMethod === 'CASH').reduce((sum, payment) => sum + Number(payment.amount), 0),
     visaCollectedAmount: payments.filter((payment) => payment.paymentMethod === 'VISA').reduce((sum, payment) => sum + Number(payment.amount), 0) }
+}
+
+function dailyPayments(state, fairId, date) {
+  return state.invoices.filter((invoice) => invoice.bookFairId === number(fairId) && invoice.paymentStatus !== 'REFUND')
+    .flatMap((invoice) => (invoice.libraryPayments || [])
+      .filter((payment) => payment.paidAt === date)
+      .map((payment) => ({ ...payment, invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber,
+        libraryName: invoice.libraryName, currency: invoice.currency })))
+    .sort((a, b) => a.id - b.id)
 }
 
 function findInvoice(state, id, fairId) {
@@ -148,6 +157,82 @@ function createInvoice(state, payload, fairId) {
   return invoice
 }
 
+function updateInvoice(state, invoiceId, fairId, payload) {
+  const invoice = findInvoice(state, invoiceId, fairId)
+  if (invoice.paymentStatus === 'REFUND') fail('Refunded invoice cannot be edited', 409)
+  if (!payload || !payload.businessDate || !payload.currency || !['DIRECT', 'WHOLESALE_CREDIT', 'GIFT'].includes(payload.paymentType)
+    || !Array.isArray(payload.items) || !payload.items.length) fail('Invalid invoice details')
+  const previous = new Map(invoice.items.map((item) => [item.bookId, item]))
+  const seen = new Set()
+  const items = payload.items.map((item, index) => {
+    const bookId = number(item.bookId)
+    const quantity = number(item.quantity)
+    const book = state.books.find((entry) => entry.id === bookId && entry.bookFairId === number(fairId))
+    if (!book || seen.has(bookId) || !Number.isInteger(quantity) || quantity < 1
+      || quantity > book.quantity + (previous.get(bookId)?.quantity || 0)) fail('Invalid book quantity or duplicate book')
+    seen.add(bookId)
+    const old = previous.get(bookId)
+    const unitPrice = old && invoice.currency === payload.currency ? old.unitPrice
+      : payload.currency === 'USD' ? book.priceInUSD : book.price
+    const percentage = number(item.discountPercentage ?? 0)
+    const fixed = number(item.fixedDiscountAmount ?? 0)
+    const gross = round(unitPrice * quantity)
+    const afterPercentage = round(gross - round(gross * percentage / 100))
+    if (![unitPrice, percentage, fixed].every(Number.isFinite) || percentage < 0 || percentage > 100
+      || fixed < 0 || fixed > afterPercentage) fail('Invalid book discount or price')
+    return { id: old?.id || invoice.id * 1000 + index + 1, bookId, bookCode: old?.bookCode || book.code,
+      bookName: old?.bookName || book.name, bookAuthor: old?.bookAuthor || book.author,
+      quantity, unitPrice, discountPercentage: percentage, fixedDiscountAmount: fixed,
+      totalAmountAfterDiscount: round(afterPercentage - fixed) }
+  })
+  const billPercent = number(payload.billDiscountPercentage ?? 0)
+  const billFixed = number(payload.billFixedDiscountAmount ?? 0)
+  const before = round(items.reduce((sum, item) => sum + round(item.unitPrice * item.quantity), 0))
+  const afterBooks = round(items.reduce((sum, item) => sum + item.totalAmountAfterDiscount, 0))
+  const afterPercentage = round(afterBooks - round(afterBooks * billPercent / 100))
+  if (!Number.isFinite(billPercent) || billPercent < 0 || billPercent > 100
+    || !Number.isFinite(billFixed) || billFixed < 0 || billFixed > afterPercentage) fail('Invalid invoice discount')
+  const total = round(afterPercentage - billFixed)
+  const paid = round((invoice.libraryPayments || []).reduce((sum, payment) => sum + number(payment.amount), 0))
+  if (paid > 0 && (payload.paymentType !== 'WHOLESALE_CREDIT' || payload.currency !== invoice.currency
+    || payload.paymentMethod !== invoice.paymentMethod || String(payload.libraryName || '').trim() !== invoice.libraryName)) {
+    fail('Sale type, payment method and library cannot change after a library payment', 409)
+  }
+  if (payload.paymentType === 'WHOLESALE_CREDIT' && paid > total) fail('Invoice total cannot be less than recorded payments')
+  if (payload.paymentType === 'DIRECT' && !['CASH', 'VISA'].includes(payload.paymentMethod)) fail('Payment method is required for a direct sale')
+  if (payload.paymentType === 'GIFT' && payload.paymentMethod) fail('Gift invoices do not have a payment method')
+  if (payload.paymentType === 'WHOLESALE_CREDIT' && (!String(payload.libraryName || '').trim()
+    || (paid === 0 && payload.paymentMethod))) fail('Invalid library or payment method')
+
+  for (const old of invoice.items) state.books.find((book) => book.id === old.bookId).quantity += old.quantity
+  for (const item of items) state.books.find((book) => book.id === item.bookId).quantity -= item.quantity
+  Object.assign(invoice, { businessDate: payload.businessDate, currency: payload.currency,
+    paymentType: payload.paymentType, paymentMethod: payload.paymentType === 'GIFT' ? null : payload.paymentMethod || null,
+    totalAmountBeforeDiscount: before, booksDiscountAmount: round(before - afterBooks),
+    invoiceDiscountPercentage: billPercent, invoiceFixedDiscountAmount: billFixed,
+    totalAmountAfterDiscounts: total, amountDue: payload.paymentType === 'GIFT' ? 0 : total, items })
+  if (payload.paymentType === 'WHOLESALE_CREDIT') {
+    const name = String(payload.libraryName).trim()
+    let library = state.libraries.find((entry) => entry.bookFairId === number(fairId) && entry.name === name)
+    if (!library) {
+      library = { id: state.nextLibraryId++, bookFairId: number(fairId), name }
+      state.libraries.push(library)
+    }
+    invoice.libraryId = library.id
+    invoice.libraryName = name
+    invoice.libraryPartialPaymentAmount = paid
+    invoice.libraryRemainingPaymentAmount = round(total - paid)
+    invoice.paymentStatus = invoice.libraryRemainingPaymentAmount === 0 ? 'PAID' : paid ? 'PARTIALLY_PAID' : 'UNPAID'
+  } else {
+    invoice.libraryId = null
+    invoice.libraryName = null
+    invoice.libraryPartialPaymentAmount = null
+    invoice.libraryRemainingPaymentAmount = null
+    invoice.paymentStatus = payload.paymentType === 'DIRECT' ? 'PAID' : 'NO_PAYMENT_REQUIRED'
+  }
+  return invoice
+}
+
 export async function exportDemoReport(path) {
   const url = new URL(path, location.origin)
   const params = url.searchParams
@@ -158,13 +243,16 @@ export async function exportDemoReport(path) {
   else if (type !== 'DASHBOARD') {
     rows = rows.filter((invoice) => invoice.paymentStatus !== 'REFUND')
     if (type === 'DAILY' && params.get('date')) rows = rows.filter((invoice) => invoice.businessDate === params.get('date'))
+    if (type === 'DIRECT_CASH') rows = rows.filter((invoice) => invoice.paymentType === 'DIRECT' && invoice.paymentMethod === 'CASH')
+    if (type === 'DIRECT_VISA') rows = rows.filter((invoice) => invoice.paymentType === 'DIRECT' && invoice.paymentMethod === 'VISA')
     if (type === 'LIBRARIES') rows = rows.filter((invoice) => invoice.paymentType === 'WHOLESALE_CREDIT')
     if (type === 'GIFTS') rows = rows.filter((invoice) => invoice.paymentType === 'GIFT')
     if (type === 'LOCAL_CURRENCY' || type === 'DOLLAR') rows = rows.filter((invoice) => invoice.currency === (type === 'DOLLAR' ? 'USD' : params.get('currency')))
   }
   rows.sort((a, b) => b.businessDate.localeCompare(a.businessDate) || b.id - a.id)
   const { buildReportWorkbook } = await import('./reportWorkbook.js')
-  return buildReportWorkbook(type, rows)
+  return buildReportWorkbook(type, rows, type === 'DAILY'
+    ? dailyPayments(read(), fairId, params.get('date')) : [])
 }
 
 export function demoRequest(path, { method = 'GET', body, signal } = {}) {
@@ -244,6 +332,8 @@ export function demoRequest(path, { method = 'GET', body, signal } = {}) {
   })
 
   if (route === '/invoices/create' && method === 'POST') return change((next) => ok(createInvoice(next, payload, fairId)))
+  if (route.startsWith('/invoices/') && route.endsWith('/edit') && method === 'PUT') return change((next) =>
+    ok(updateInvoice(next, route.split('/')[2], fairId, payload)))
   if (route === '/invoices/fetchLibraries') return ok(state.libraries.filter((item) => item.bookFairId === number(fairId)))
   if (route === '/invoices/fetchAll') return ok(paged(state.invoices.filter((entry) => entry.bookFairId === number(fairId)).sort((a, b) => b.id - a.id).map(summary), params.get('page'), params.get('size')))
   if (route === '/invoices/all' && method === 'DELETE') return change((next) => {
@@ -284,8 +374,25 @@ export function demoRequest(path, { method = 'GET', body, signal } = {}) {
     const list = state.invoices.filter((entry) => entry.bookFairId === number(fairId) && entry.paymentStatus !== 'REFUND'
       && (!params.get('date') || entry.businessDate === params.get('date'))
       && (!params.get('paymentType') || entry.paymentType === params.get('paymentType'))
+      && (!params.get('paymentMethod') || entry.paymentMethod === params.get('paymentMethod'))
       && (!params.get('currency') || entry.currency === params.get('currency'))).sort((a, b) => b.id - a.id)
-    return ok(list.map(summary))
+    return ok(list.map((invoice) => {
+      const result = summary(invoice)
+      if (params.get('date')) {
+        result.cashCollectedAmount = dailyPayments(state, fairId, params.get('date'))
+          .filter((payment) => payment.invoiceId === invoice.id && payment.paymentMethod === 'CASH')
+          .reduce((sum, payment) => sum + number(payment.amount), 0)
+        result.visaCollectedAmount = dailyPayments(state, fairId, params.get('date'))
+          .filter((payment) => payment.invoiceId === invoice.id && payment.paymentMethod === 'VISA')
+          .reduce((sum, payment) => sum + number(payment.amount), 0)
+      }
+      return result
+    }))
+  }
+  if (route === '/reports/library-payments') {
+    fair(state, fairId)
+    if (!params.get('date')) fail('Report date is required')
+    return ok(dailyPayments(state, fairId, params.get('date')))
   }
   fail('العملية غير متاحة في نسخة العرض', 404)
 }

@@ -18,7 +18,7 @@ function CatalogEmpty({ hasSearch }) {
     <div className="catalog-state">
       <span className="catalog-state__icon"><Icon name={hasSearch ? 'search' : 'books'} size={28} /></span>
       <strong>{hasSearch ? 'مفيش كتب مطابقة للبحث' : 'قائمة الكتب فاضية'}</strong>
-      <p>{hasSearch ? 'جرّب تكتب بداية اسم الكتاب أو الكود بشكل مختلف.' : 'ضيف أول كتاب يدوي أو استورده من ملف Excel.'}</p>
+      <p>{hasSearch ? 'جرّب تكتب أي جزء من اسم الكتاب أو الكود أو رقمه.' : 'ضيف أول كتاب يدوي أو استورده من ملف Excel.'}</p>
     </div>
   )
 }
@@ -46,7 +46,7 @@ export function BookCatalog({ search, onSearchChange, state, page, onPageChange,
 
       <div className="catalog-search">
         <Icon name="search" size={19} />
-        <input name="catalog-search" autoComplete="off" spellCheck="false" type="search" value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="ابحث ببداية اسم الكتاب أو الكود…" aria-label="البحث في الكتب بالاسم أو الكود" />
+        <input name="catalog-search" autoComplete="off" spellCheck="false" type="search" value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="ابحث بأي جزء من اسم الكتاب أو الكود أو رقمه…" aria-label="البحث في الكتب بالاسم أو الكود أو الرقم" />
         {isLoading && <span className="spinner" aria-label="جاري البحث" />}
       </div>
 

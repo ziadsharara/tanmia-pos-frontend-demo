@@ -27,9 +27,11 @@ export function InvoiceCart({ items, currency, calculation, disabled, onChange, 
       {items.map((item) => {
         const calculated = calculations.get(item.book.id)
         const unitPrice = calculated?.unitPrice ?? (currency === 'USD' ? item.book.priceInUSD : item.book.price)
+        const originalQuantity = Number(item.originalQuantity || 0)
+        const currentStock = Number(item.book.quantity) - originalQuantity
         return (
           <article className="invoice-line" key={item.book.id}>
-            <div className="invoice-line__book"><strong>{item.book.name}</strong><span>{item.book.author}</span><small dir="ltr">{item.book.code}</small><small>المتاح: {item.book.quantity} نسخة</small></div>
+            <div className="invoice-line__book"><strong>{item.book.name}</strong><span>{item.book.author}</span><small dir="ltr">{item.book.code}</small><small>{originalQuantity > 0 ? `المخزون الحالي: ${currentStock} نسخة · الحد لهذه الفاتورة: ${item.book.quantity} نسخ` : `المتاح: ${item.book.quantity} نسخة`}</small></div>
             <div className="invoice-line__price"><span>سعر الوحدة</span><MoneyValue value={unitPrice} currency={currency} localCurrency={localCurrency} /></div>
             <NumberField className="invoice-line__quantity" name={`quantity-${item.book.id}`} label="الكمية" min="1" max={item.book.quantity} step="1" value={item.quantity} disabled={disabled} onChange={(value) => onChange(item.book.id, 'quantity', value)} />
             <NumberField className="invoice-line__percentage" name={`discount-percentage-${item.book.id}`} label="خصم %" max="100" step="0.01" value={item.discountPercentage} disabled={disabled} onChange={(value) => onChange(item.book.id, 'discountPercentage', value)} />

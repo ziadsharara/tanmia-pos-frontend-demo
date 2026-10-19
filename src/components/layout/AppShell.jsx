@@ -31,7 +31,6 @@ export function AppShell({ activePage, exhibitionName, localCurrency, onNavigate
     window.requestAnimationFrame(() => mobileMoreTriggerRef.current?.focus())
   }
 
-
   useEffect(() => {
     setMobileMoreOpen(false)
   }, [activePage])

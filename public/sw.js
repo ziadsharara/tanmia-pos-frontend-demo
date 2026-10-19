@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tanmia-pos-demo-v1'
+const CACHE_NAME = 'tanmia-pos-demo-v2'
 
 self.addEventListener('install', () => self.skipWaiting())
 

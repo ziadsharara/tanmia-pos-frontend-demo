@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { deleteAllInvoices, deleteInvoice, fetchInvoices, recordLibraryPayment } from '../api/invoices.js'
 import { InvoiceDetailsOverlay } from '../components/invoices/InvoiceDetailsOverlay.jsx'
+import { EditInvoiceModal } from '../components/invoices/EditInvoiceModal.jsx'
 import { InvoicesTable } from '../components/invoices/InvoicesTable.jsx'
 import { LibraryPaymentModal } from '../components/invoices/LibraryPaymentModal.jsx'
 import { DeleteDataConfirmModal } from '../components/ui/DeleteDataConfirmModal.jsx'
@@ -19,6 +20,7 @@ export function InvoicesPage({ isActive, localCurrency, exhibitionName, activeBo
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [paymentTarget, setPaymentTarget] = useState(null)
+  const [editingInvoiceId, setEditingInvoiceId] = useState(null)
   const [recordingPayment, setRecordingPayment] = useState(false)
   const { detail, openInvoice, closeInvoice } = useInvoiceDetails(activeBookFair?.id)
 
@@ -42,6 +44,7 @@ export function InvoicesPage({ isActive, localCurrency, exhibitionName, activeBo
     setDeleteOpen(false)
     setDeleteTarget(null)
     setPaymentTarget(null)
+    setEditingInvoiceId(null)
   }, [activeBookFair?.id])
 
   const handleOpenInvoice = async (invoiceId) => {
@@ -101,6 +104,12 @@ export function InvoicesPage({ isActive, localCurrency, exhibitionName, activeBo
     }
   }
 
+  const handleInvoiceUpdated = () => {
+    setEditingInvoiceId(null)
+    setToast({ tone: 'success', message: 'تم تعديل الفاتورة وتحديث المخزون بنجاح' })
+    onDataChanged()
+  }
+
   if (!activeBookFair) {
     return <div className="page"><section className="page-heading"><div><h1>الفواتير</h1><p>اختار معرض علشان تشوف فواتيره.</p></div><div className="page-heading__icon"><Icon name="history" size={28} /></div></section><Notice tone="info" title="اختار معرض أولاً">كل معرض له سجل فواتير مستقل. اختار معرض محفوظ علشان تظهر فواتيره هنا.</Notice><a className="button button--primary empty-state-action" href="#settings"><Icon name="settings" size={18} />فتح إعدادات المعرض</a></div>
   }
@@ -113,9 +122,10 @@ export function InvoicesPage({ isActive, localCurrency, exhibitionName, activeBo
         <div className="catalog-toolbar"><div><h2>فواتير {activeBookFair.name}</h2></div><div className="catalog-count"><Icon name="invoice" size={17} /><span>الإجمالي</span><strong>{state.status === 'empty' ? 0 : state.data?.totalElements ?? '—'}</strong></div></div>
         {state.status === 'loading' && !state.data && <div className="catalog-state"><span className="spinner spinner--large" /><strong>جاري تحميل الفواتير...</strong></div>}
         {(state.status === 'empty' || (state.status === 'ready' && invoices.length === 0)) && <div className="catalog-state"><span className="catalog-state__icon"><Icon name="invoice" size={28} /></span><strong>مفيش فواتير محفوظة للمعرض ده</strong><p>أول فاتورة بيع في {activeBookFair.name} هتظهر هنا بعد حفظها.</p></div>}
-        {state.data && invoices.length > 0 && <InvoicesTable invoices={invoices} pageData={state.data} loading={state.status === 'loading'} detailLoading={detail.status === 'loading'} deletingInvoiceId={deleting ? deleteTarget?.id : null} recordingPaymentId={recordingPayment ? paymentTarget?.id : null} localCurrency={localCurrency} showBooks onOpenInvoice={handleOpenInvoice} onDeleteInvoice={setDeleteTarget} onRecordPayment={setPaymentTarget} onPreviousPage={() => setPage((current) => current - 1)} onNextPage={() => setPage((current) => current + 1)} />}
+        {state.data && invoices.length > 0 && <InvoicesTable invoices={invoices} pageData={state.data} loading={state.status === 'loading'} detailLoading={detail.status === 'loading'} editingInvoiceId={editingInvoiceId} deletingInvoiceId={deleting ? deleteTarget?.id : null} recordingPaymentId={recordingPayment ? paymentTarget?.id : null} localCurrency={localCurrency} showBooks onOpenInvoice={handleOpenInvoice} onEditInvoice={setEditingInvoiceId} onDeleteInvoice={setDeleteTarget} onRecordPayment={setPaymentTarget} onPreviousPage={() => setPage((current) => current - 1)} onNextPage={() => setPage((current) => current + 1)} />}
       </section>
       <InvoiceDetailsOverlay detail={detail} localCurrency={localCurrency} exhibitionName={exhibitionName} onClose={closeInvoice} />
+      {editingInvoiceId != null && <EditInvoiceModal invoiceId={editingInvoiceId} bookFairId={activeBookFair.id} localCurrency={localCurrency} onClose={() => setEditingInvoiceId(null)} onSaved={handleInvoiceUpdated} />}
       {paymentTarget && <LibraryPaymentModal invoice={paymentTarget} localCurrency={localCurrency} isBusy={recordingPayment} onClose={() => setPaymentTarget(null)} onConfirm={handleRecordPayment} />}
       {deleteOpen && <DeleteDataConfirmModal title="حذف كل الفواتير" description={`هيتم حذف كل فواتير ${activeBookFair.name} وبنودها، وإرجاع كميات كتب الفواتير غير المرتجعة للمخزون.`} phrase="حذف كل الفواتير" confirmLabel="حذف كل الفواتير نهائياً" isBusy={deleting} onClose={() => setDeleteOpen(false)} onConfirm={handleDeleteAllInvoices} />}
       {deleteTarget && <DeleteDataConfirmModal title="حذف الفاتورة" description={`هيتم حذف الفاتورة رقم ${deleteTarget.invoiceNumber} وبنودها نهائياً، وإرجاع كميات كتبها للمخزون لو مش مرتجعة.`} phrase="حذف الفاتورة" confirmLabel="حذف الفاتورة نهائياً" isBusy={deleting} onClose={() => setDeleteTarget(null)} onConfirm={handleDeleteInvoice} />}

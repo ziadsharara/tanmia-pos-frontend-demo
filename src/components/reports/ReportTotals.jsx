@@ -10,6 +10,8 @@ function TotalCard({ label, value, tone, currency, localCurrency }) {
 }
 
 const metricsByReport = {
+  'reports-cash': ['sales', 'collected', 'cashCollected'],
+  'reports-visa': ['sales', 'collected', 'visaCollected'],
   'reports-libraries': ['sales', 'collected', 'cashCollected', 'visaCollected', 'remaining', 'netCollected'],
   'reports-gifts': ['gifts'],
   'reports-refunds': ['refunds'],

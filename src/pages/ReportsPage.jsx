@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { recordLibraryPayment } from '../api/invoices.js'
-import { exportReport, fetchReportInvoices, fetchReportRefundInvoices } from '../api/reports.js'
+import { exportReport, fetchDailyLibraryPayments, fetchReportInvoices, fetchReportRefundInvoices } from '../api/reports.js'
 import { InvoiceDetailsOverlay } from '../components/invoices/InvoiceDetailsOverlay.jsx'
 import { InvoicesTable } from '../components/invoices/InvoicesTable.jsx'
 import { LibraryPaymentModal } from '../components/invoices/LibraryPaymentModal.jsx'
@@ -11,7 +11,7 @@ import { Icon } from '../components/ui/Icon.jsx'
 import { Notice } from '../components/ui/Notice.jsx'
 import { Toast } from '../components/ui/Toast.jsx'
 import { useInvoiceDetails } from '../hooks/useInvoiceDetails.js'
-import { getLocalCurrencySalesReportName } from '../utils/currency.js'
+import { formatMoney, getLocalCurrencySalesReportName } from '../utils/currency.js'
 import { toArabicToastMessage } from '../utils/messages.js'
 import { calculateReportTotals } from '../utils/reportTotals.js'
 
@@ -19,6 +19,8 @@ const REPORT_PAGE_SIZE = 25
 const exportTypes = {
   'reports-dashboard': 'DASHBOARD',
   'reports-daily': 'DAILY',
+  'reports-cash': 'DIRECT_CASH',
+  'reports-visa': 'DIRECT_VISA',
   'reports-libraries': 'LIBRARIES',
   'reports-gifts': 'GIFTS',
   'reports-refunds': 'REFUNDS',
@@ -29,6 +31,8 @@ const exportTypes = {
 const reportNavigation = [
   ['reports-dashboard', 'نظرة عامة'],
   ['reports-daily', 'يومي'],
+  ['reports-cash', 'فواتير نقدي'],
+  ['reports-visa', 'فواتير فيزا'],
   ['reports-libraries', 'المكتبات'],
   ['reports-gifts', 'الهدايا'],
   ['reports-refunds', 'المرتجعات'],
@@ -46,7 +50,9 @@ function getToday() {
 function getReportDetails(reportPage, localCurrency) {
   const reports = {
     'reports-dashboard': { title: 'لوحة التقارير', description: 'ملخص حركة المبيعات والدفع والمرتجعات في المعرض.', empty: 'مفيش فواتير محفوظة في المعرض ده.' },
-    'reports-daily': { title: 'التقارير اليومية', description: 'راجع فواتير يوم محدد وإجمالياتها.', empty: 'مفيش فواتير محفوظة في التاريخ المحدد.' },
+    'reports-daily': { title: 'التقارير اليومية', description: 'راجع مبيعات اليوم والمبالغ المحصلة فيه، بما فيها دفعات المكتبات لفواتير سابقة.', empty: 'مفيش فواتير جديدة في التاريخ المحدد.' },
+    'reports-cash': { title: 'فواتير البيع المباشر النقدي', description: 'راجع فواتير البيع المباشر المدفوعة نقداً وإجمالياتها.', empty: 'مفيش فواتير بيع مباشر مدفوعة نقداً في المعرض ده.' },
+    'reports-visa': { title: 'فواتير البيع المباشر بالفيزا', description: 'راجع فواتير البيع المباشر المدفوعة بالفيزا وإجمالياتها.', empty: 'مفيش فواتير بيع مباشر مدفوعة بالفيزا في المعرض ده.' },
     'reports-libraries': { title: 'مبيعات المكتبات', description: 'راجع المبيعات الآجلة والمحصل والمتبقي وسجل دفعات المكتبات.', empty: 'مفيش فواتير بيع آجل للمكتبات في المعرض ده.' },
     'reports-gifts': { title: 'تقارير الهدايا', description: 'راجع فواتير الهدايا وقيمتها بدون احتسابها كإيراد.', empty: 'مفيش فواتير هدايا في المعرض ده.' },
     'reports-refunds': { title: 'تقارير المرتجعات', description: 'راجع الفواتير المرتجعة وقيمة المبالغ المرتجعة.', empty: 'مفيش فواتير مرتجعة في المعرض ده.' },
@@ -58,6 +64,8 @@ function getReportDetails(reportPage, localCurrency) {
 
 function getReportFilters(reportPage, activeBookFair, date) {
   if (reportPage === 'reports-daily') return { date }
+  if (reportPage === 'reports-cash') return { paymentType: 'DIRECT', paymentMethod: 'CASH' }
+  if (reportPage === 'reports-visa') return { paymentType: 'DIRECT', paymentMethod: 'VISA' }
   if (reportPage === 'reports-libraries') return { paymentType: 'WHOLESALE_CREDIT' }
   if (reportPage === 'reports-gifts') return { paymentType: 'GIFT' }
   if (reportPage === 'reports-local-currency') return { currency: activeBookFair.primaryCurrency || activeBookFair.localCurrency?.code }
@@ -96,7 +104,12 @@ export function ReportsPage({ reportPage, activeBookFair, localCurrency, dataVer
     setState({ status: 'loading', data: null })
     const reportRequest = reportPage === 'reports-refunds'
       ? fetchReportRefundInvoices({ bookFairId: activeBookFair.id, signal: controller.signal })
-      : reportPage === 'reports-dashboard'
+      : reportPage === 'reports-daily'
+        ? Promise.all([
+            fetchReportInvoices({ bookFairId: activeBookFair.id, ...filters, signal: controller.signal }),
+            fetchDailyLibraryPayments({ bookFairId: activeBookFair.id, date, signal: controller.signal }),
+          ]).then(([invoicesResponse, paymentsResponse]) => ({ invoices: invoicesResponse.data || [], payments: paymentsResponse.data || [] }))
+        : reportPage === 'reports-dashboard'
         ? Promise.all([
             fetchReportInvoices({ bookFairId: activeBookFair.id, signal: controller.signal }).then((response) => response.data || []),
             fetchReportRefundInvoices({ bookFairId: activeBookFair.id, signal: controller.signal }),
@@ -114,16 +127,22 @@ export function ReportsPage({ reportPage, activeBookFair, localCurrency, dataVer
     return () => controller.abort()
   }, [activeBookFair?.id, activeBookFair?.primaryCurrency, reportPage, date, refreshKey, dataVersion])
 
+  const dailyPayments = reportPage === 'reports-daily' && state.status === 'ready' ? state.data?.payments || [] : null
   const invoices = useMemo(() => {
-    if (!Array.isArray(state.data)) return []
-    return [...state.data].sort((first, second) => {
+    const data = Array.isArray(state.data) ? state.data : state.data?.invoices
+    if (!Array.isArray(data)) return []
+    const paymentMethod = reportPage === 'reports-cash' ? 'CASH' : reportPage === 'reports-visa' ? 'VISA' : null
+    const matchingInvoices = paymentMethod
+      ? data.filter((invoice) => invoice.paymentType === 'DIRECT' && invoice.paymentMethod === paymentMethod)
+      : data
+    return [...matchingInvoices].sort((first, second) => {
       const dateField = reportPage === 'reports-refunds' ? 'refundAt' : 'businessDate'
       const dateOrder = String(second[dateField] || '').localeCompare(String(first[dateField] || ''))
       return dateOrder || Number(second.id || 0) - Number(first.id || 0)
     })
   }, [state.data, reportPage])
   const totalPages = Math.ceil(invoices.length / REPORT_PAGE_SIZE)
-  const reportTotals = useMemo(() => calculateReportTotals(invoices), [invoices])
+  const reportTotals = useMemo(() => calculateReportTotals(invoices, dailyPayments), [invoices, dailyPayments])
   const visibleInvoices = invoices.slice(page * REPORT_PAGE_SIZE, (page + 1) * REPORT_PAGE_SIZE)
   const pageData = {
     number: page,
@@ -205,14 +224,16 @@ export function ReportsPage({ reportPage, activeBookFair, localCurrency, dataVer
       {reportPage === 'reports-daily' && <section className="panel report-filters"><label className="form-field"><span>تاريخ التقرير</span><input name="report-date" autoComplete="off" type="date" dir="ltr" value={date} onChange={(event) => { setDate(event.target.value); setPage(0) }} /></label></section>}
 
       {reportPage === 'reports-dashboard' && state.status === 'ready' && invoices.length > 0 && <DashboardOverview invoices={invoices} />}
-      {state.status === 'ready' && invoices.length > 0 && <ReportTotals totals={reportTotals} localCurrency={localCurrency} reportPage={reportPage} />}
+      {state.status === 'ready' && (invoices.length > 0 || dailyPayments?.length > 0) && <ReportTotals totals={reportTotals} localCurrency={localCurrency} reportPage={reportPage} />}
+
+      {reportPage === 'reports-daily' && state.status === 'ready' && dailyPayments.length > 0 && <section className="panel catalog-panel"><div className="catalog-toolbar"><div><h2>دفعات المكتبات المحصلة يوم {date}</h2><p>تظهر الدفعة هنا بتاريخ سدادها، حتى لو كانت الفاتورة من يوم سابق.</p></div><div className="catalog-count"><span>الدفعات</span><strong>{dailyPayments.length}</strong></div></div><div className="table-wrap catalog-table-wrap history-table-wrap"><table className="history-table"><thead><tr><th>رقم الفاتورة</th><th>المكتبة</th><th>تاريخ الدفع</th><th>طريقة الدفع</th><th>المبلغ المحصل</th></tr></thead><tbody>{dailyPayments.map((payment) => <tr key={payment.id}><td data-label="رقم الفاتورة" dir="ltr">{payment.invoiceNumber}</td><td data-label="المكتبة">{payment.libraryName || '—'}</td><td data-label="تاريخ الدفع">{payment.paidAt}</td><td data-label="طريقة الدفع">{payment.paymentMethod === 'CASH' ? 'نقدي' : 'فيزا'}</td><td data-label="المبلغ المحصل" dir="ltr">{formatMoney(payment.amount, payment.currency, localCurrency)}</td></tr>)}</tbody></table></div></section>}
 
       <section className="panel catalog-panel">
         <div className="catalog-toolbar"><div><h2>{report.title}</h2><p>{activeBookFair.name}</p></div><div className="catalog-count"><Icon name="invoice" size={17} /><span>الإجمالي</span><strong>{invoices.length}</strong></div></div>
         {state.status === 'loading' && <div className="catalog-state"><span className="spinner spinner--large" /><strong>جاري تحميل التقرير...</strong></div>}
         {state.status === 'error' && <div className="catalog-state"><span className="catalog-state__icon"><Icon name="reports" size={28} /></span><strong>تعذر تحميل التقرير</strong><p>حاول تحميل البيانات مرة تانية.</p><button className="button button--secondary" type="button" onClick={() => setRefreshKey((current) => current + 1)}>حاول تاني</button></div>}
         {state.status === 'ready' && invoices.length === 0 && <div className="catalog-state"><span className="catalog-state__icon"><Icon name="reports" size={28} /></span><strong>{report.empty}</strong></div>}
-        {state.status === 'ready' && invoices.length > 0 && <InvoicesTable invoices={visibleInvoices} pageData={pageData} loading={false} detailLoading={detail.status === 'loading'} recordingPaymentId={recordingPayment ? paymentTarget?.id : null} localCurrency={localCurrency} showBooks dateField={reportPage === 'reports-refunds' ? 'refundAt' : 'businessDate'} dateLabel={reportPage === 'reports-refunds' ? 'تاريخ المرتجع' : 'التاريخ'} onOpenInvoice={handleOpenInvoice} onRecordPayment={reportPage === 'reports-libraries' ? setPaymentTarget : undefined} onPreviousPage={() => setPage((current) => current - 1)} onNextPage={() => setPage((current) => current + 1)} />}
+        {state.status === 'ready' && invoices.length > 0 && <InvoicesTable invoices={visibleInvoices} pageData={pageData} loading={false} detailLoading={detail.status === 'loading'} recordingPaymentId={recordingPayment ? paymentTarget?.id : null} localCurrency={localCurrency} showBooks showBookAmounts dailyReport={reportPage === 'reports-daily'} dateField={reportPage === 'reports-refunds' ? 'refundAt' : 'businessDate'} dateLabel={reportPage === 'reports-refunds' ? 'تاريخ المرتجع' : 'التاريخ'} onOpenInvoice={handleOpenInvoice} onRecordPayment={reportPage === 'reports-libraries' ? setPaymentTarget : undefined} onPreviousPage={() => setPage((current) => current - 1)} onNextPage={() => setPage((current) => current + 1)} />}
       </section>
 
       <InvoiceDetailsOverlay detail={detail} localCurrency={localCurrency} exhibitionName={activeBookFair.name} onClose={closeInvoice} />

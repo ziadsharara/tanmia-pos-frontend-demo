@@ -64,7 +64,17 @@ export function createSeedData() {
     const choices = books.filter((book) => book.bookFairId === fair.id && book.quantity >= 8).slice(100)
     for (let number = 0; number < 30; number += 1) {
       const selection = [choices[number * 2], choices[number * 2 + 1]]
-      invoices.push(makeInvoice(invoices.length + 1, fair, selection, number))
+      const invoice = makeInvoice(invoices.length + 1, fair, selection, number)
+      if (number === 5) {
+        const delayedPayment = Math.round(invoice.totalAmountAfterDiscounts * 0.4 * 100) / 100
+        invoice.libraryPayments.push({ id: invoice.id * 10 + 1, amount: delayedPayment,
+          paymentMethod: 'CASH', paidAt: daysAgo(2) })
+        invoice.libraryPartialPaymentAmount = delayedPayment
+        invoice.libraryRemainingPaymentAmount = Math.round((invoice.totalAmountAfterDiscounts - delayedPayment) * 100) / 100
+        invoice.paymentMethod = 'CASH'
+        invoice.paymentStatus = 'PARTIALLY_PAID'
+      }
+      invoices.push(invoice)
     }
   }
   const stock = books.map((book) => ({ ...book }))
@@ -73,7 +83,7 @@ export function createSeedData() {
     invoice.items.forEach((item) => { stockById.get(item.bookId).quantity -= item.quantity })
   })
   return {
-    version: 4,
+    version: 5,
     nextBookId: Math.max(...stock.map((book) => book.id)) + 1,
     nextInvoiceId: invoices.length + 1, nextFairId: 6, nextLibraryId: 7, nextPaymentId: 1000,
     fairs: fairs.map(({ bookOffset, ...fair }) => fair),

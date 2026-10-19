@@ -11,9 +11,9 @@
   "theme_color": "#053241",
   "icons": [
     {
-      "src": "/tanmia-app.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/tanmia-app.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]

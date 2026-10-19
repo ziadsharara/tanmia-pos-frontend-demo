@@ -8,6 +8,13 @@ export async function createInvoice(invoice, bookFairId) {
   return response
 }
 
+export async function updateInvoice(invoiceId, bookFairId, invoice) {
+  const params = new URLSearchParams({ bookFairId: String(bookFairId) })
+  const response = await request(`/invoices/${invoiceId}/edit?${params}`, { method: 'PUT', body: JSON.stringify(invoice) })
+  invalidateBooksCache()
+  return response
+}
+
 export function fetchLibraries({ bookFairId, signal } = {}) {
   const params = new URLSearchParams({ bookFairId: String(bookFairId) })
   return request(`/invoices/fetchLibraries?${params}`, { signal })

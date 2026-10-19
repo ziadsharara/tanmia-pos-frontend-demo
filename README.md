@@ -5,7 +5,8 @@ This is a separate, browser-only copy of the Tanmia POS frontend. It uses the sa
 ## Demo data and operations
 
 - Starts with the Libya, Algeria, and Sharjah fairs. Each fair has a static snapshot of 643 books from the local catalog. The demo adds 30 synthetic invoices per fair and sample libraries. Invoice numbers use UUID format, as in the current backend.
-- Search, add, edit, delete, and Excel import books; create direct, credit, and gift invoices; record library payments; refund and delete invoices; view reports; and export `.xlsx` reports.
+- Search, add, edit, delete, and Excel import books; create and edit direct, credit, and gift invoices; record library payments; refund and delete invoices; view reports; and export `.xlsx` reports.
+- Each fair includes a credit invoice with a payment recorded three days after the invoice date. The daily report and its Excel export show that payment on the payment date while leaving the sale on the invoice date.
 - Sales reduce stock. Refunds and invoice deletion restore stock. Reports reflect changes immediately.
 - Changes are saved in the visitor's `localStorage`. Each browser has its own copy, so visitors do not see one another's changes. Clearing site data resets the demo.
 - Book catalog data is a static snapshot of the local development backend. Invoices and libraries are generated demonstration records, not real sales.

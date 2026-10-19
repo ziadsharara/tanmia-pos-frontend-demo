@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchBookById, fetchBooks } from '../api/books.js'
 import { createInvoice, fetchLibraries } from '../api/invoices.js'
 import { ApiError } from '../api/http.js'
@@ -33,7 +33,8 @@ function calculateInvoice(values, cart) {
     const fixedDiscount = roundMoney(Number(item.fixedDiscountAmount || 0))
     const unitPrice = Number(values.currency === 'USD' ? item.book.priceInUSD : item.book.price)
     if (![quantity, percentage, fixedDiscount, unitPrice].every(Number.isFinite)
-      || quantity <= 0 || percentage < 0 || percentage > 100 || fixedDiscount < 0 || unitPrice < 0) return null
+      || quantity <= 0 || quantity > Number(item.book.quantity)
+      || percentage < 0 || percentage > 100 || fixedDiscount < 0 || unitPrice < 0) return null
 
     const grossAmount = roundMoney(unitPrice * quantity)
     const percentageDiscountAmount = roundMoney(grossAmount * percentage / 100)
@@ -118,6 +119,7 @@ function buildRequest(values, cart, invoiceCalculation) {
 function validateSale(values, cart) {
   if (!cart.length) return 'ضيف كتاب واحد على الأقل للفاتورة.'
   if (cart.some((item) => !Number.isInteger(Number(item.quantity)) || Number(item.quantity) <= 0)) return 'راجع كميات الكتب.'
+  if (cart.some((item) => Number(item.quantity) > Number(item.book.quantity))) return 'كمية كتاب في الفاتورة أكبر من المخزون الحالي.'
   if (values.paymentType === 'DIRECT' && !values.paymentMethod) return 'اختار طريقة الدفع للبيع المباشر.'
   if (values.paymentType === 'WHOLESALE_CREDIT' && !values.libraryName.trim()) return 'اكتب اسم المكتبة للفاتورة الآجلة.'
   if (values.paymentType === 'WHOLESALE_CREDIT' && Number(values.libraryPartialPaymentAmount || 0) > 0 && !values.paymentMethod) return 'اختار طريقة دفع المبلغ المدفوع من المكتبة.'
@@ -125,6 +127,75 @@ function validateSale(values, cart) {
 }
 
 export function NewInvoicePage({ isActive, localCurrency, exhibitionName, activeBookFair, onDataChanged }) {
+  const [drafts, setDrafts] = useState([{ id: 1, itemCount: 0, dirty: false, receipt: false, saving: false }])
+  const [activeDraftId, setActiveDraftId] = useState(1)
+  const [stockVersion, setStockVersion] = useState(0)
+  const nextDraftId = useRef(2)
+
+  useEffect(() => {
+    setDrafts([{ id: 1, itemCount: 0, dirty: false, receipt: false, saving: false }])
+    setActiveDraftId(1)
+    setStockVersion(0)
+    nextDraftId.current = 2
+  }, [activeBookFair?.id])
+
+  const updateDraftStatus = useCallback((draftId, status) => {
+    setDrafts((current) => current.map((draft) => {
+      if (draft.id !== draftId) return draft
+      if (draft.itemCount === status.itemCount && draft.dirty === status.dirty
+        && draft.receipt === status.receipt && draft.saving === status.saving) return draft
+      return { ...draft, ...status }
+    }))
+  }, [])
+
+  const addDraft = () => {
+    const id = nextDraftId.current++
+    setDrafts((current) => [...current, { id, itemCount: 0, dirty: false, receipt: false, saving: false }])
+    setActiveDraftId(id)
+  }
+
+  const closeDraft = (draftId) => {
+    if (drafts.length === 1) return
+    const draft = drafts.find((item) => item.id === draftId)
+    if (!draft || draft.saving) return
+    if (draft.dirty && !draft.receipt && !window.confirm('الفاتورة دي لسه ما اتحفظتش. تقفلها وتفقد بياناتها؟')) return
+    const index = drafts.findIndex((item) => item.id === draftId)
+    const remaining = drafts.filter((item) => item.id !== draftId)
+    setDrafts(remaining)
+    if (activeDraftId === draftId) setActiveDraftId(remaining[Math.min(index, remaining.length - 1)].id)
+  }
+
+  const handleSaved = useCallback(() => {
+    setStockVersion((current) => current + 1)
+    onDataChanged()
+  }, [onDataChanged])
+
+  const handleTabKeyDown = (event, index) => {
+    let nextIndex
+    if (event.key === 'ArrowLeft') nextIndex = (index + 1) % drafts.length
+    else if (event.key === 'ArrowRight') nextIndex = (index - 1 + drafts.length) % drafts.length
+    else if (event.key === 'Home') nextIndex = 0
+    else if (event.key === 'End') nextIndex = drafts.length - 1
+    else return
+    event.preventDefault()
+    setActiveDraftId(drafts[nextIndex].id)
+    document.getElementById(`invoice-draft-tab-${drafts[nextIndex].id}`)?.focus()
+  }
+
+  if (!activeBookFair) {
+    return <div className="page"><section className="page-heading"><div><h1>فاتورة جديدة</h1><p>اختار معرض قبل البحث في كتبه.</p></div><div className="page-heading__icon"><Icon name="invoice" size={28} /></div></section><Notice tone="info" title="اختار معرض أولاً">كل فاتورة لازم تبدأ من معرض محدد علشان تظهر كتب المعرض الصحيح.</Notice><a className="button button--primary empty-state-action" href="#settings"><Icon name="settings" size={18} />فتح إعدادات المعرض</a></div>
+  }
+
+  return (
+    <div className="page invoice-tabs-page">
+      <section className="page-heading"><div><h1>فاتورة جديدة</h1><p>افتح أكتر من فاتورة وارجع لأي واحدة لما العميل يبقى جاهز.</p></div><div className="page-heading__icon"><Icon name="invoice" size={28} /></div></section>
+      <div className="invoice-draft-tabs no-print"><div className="invoice-draft-tabs__list" role="tablist" aria-label="فواتير قيد التحضير">{drafts.map((draft, index) => <div className={`invoice-draft-tabs__item${activeDraftId === draft.id ? ' is-active' : ''}`} key={draft.id}><button id={`invoice-draft-tab-${draft.id}`} type="button" role="tab" aria-selected={activeDraftId === draft.id} aria-controls={`invoice-draft-panel-${draft.id}`} tabIndex={activeDraftId === draft.id ? 0 : -1} onClick={() => setActiveDraftId(draft.id)} onKeyDown={(event) => handleTabKeyDown(event, index)}><Icon name="invoice" size={16} /><span>فاتورة {index + 1}</span><small>{draft.receipt ? 'محفوظة' : draft.itemCount ? `${draft.itemCount} كتاب` : 'فارغة'}</small></button>{drafts.length > 1 && <button className="invoice-draft-tabs__close" type="button" disabled={draft.saving} aria-label={`إغلاق فاتورة ${index + 1}`} onClick={() => closeDraft(draft.id)}><Icon name="close" size={14} /></button>}</div>)}</div><button className="button button--secondary invoice-draft-tabs__add" type="button" onClick={addDraft}><Icon name="add" size={17} />فاتورة جديدة</button></div>
+      {drafts.map((draft) => <div key={`${activeBookFair.id}-${draft.id}`} id={`invoice-draft-panel-${draft.id}`} className={`invoice-draft-panel${activeDraftId === draft.id ? ' invoice-draft-panel--active' : ''}`} role="tabpanel" aria-labelledby={`invoice-draft-tab-${draft.id}`} hidden={activeDraftId !== draft.id}><InvoiceDraft draftId={draft.id} isActive={isActive && activeDraftId === draft.id} localCurrency={localCurrency} exhibitionName={exhibitionName} activeBookFair={activeBookFair} stockVersion={stockVersion} onStatusChange={updateDraftStatus} onSaved={handleSaved} onNewTab={addDraft} /></div>)}
+    </div>
+  )
+}
+
+function InvoiceDraft({ draftId, isActive, localCurrency, exhibitionName, activeBookFair, stockVersion, onStatusChange, onSaved, onNewTab }) {
   const [values, setValues] = useState(() => createInitialValues(activeBookFair?.primaryCurrency))
   const [cart, setCart] = useState([])
   const [search, setSearch] = useState('')
@@ -134,6 +205,13 @@ export function NewInvoicePage({ isActive, localCurrency, exhibitionName, active
   const [receipt, setReceipt] = useState(null)
   const [toast, setToast] = useState(null)
   const searchInputRef = useRef(null)
+  const hasReceipt = Boolean(receipt)
+  const isDirty = cart.length > 0 || Object.entries(createInitialValues(activeBookFair?.primaryCurrency))
+    .some(([field, initial]) => values[field] !== initial)
+
+  useEffect(() => {
+    onStatusChange(draftId, { itemCount: cart.length, dirty: isDirty, receipt: hasReceipt, saving: saveState.status === 'saving' })
+  }, [draftId, cart.length, isDirty, hasReceipt, saveState.status, onStatusChange])
 
   useEffect(() => {
     if (!isActive || !activeBookFair?.id || receipt || !window.matchMedia('(min-width: 801px) and (pointer: fine)').matches) return undefined
@@ -154,6 +232,19 @@ export function NewInvoicePage({ isActive, localCurrency, exhibitionName, active
     setReceipt(null)
     setToast(null)
   }, [activeBookFair?.id, activeBookFair?.primaryCurrency])
+
+  useEffect(() => {
+    if (!isActive || !cart.length || receipt) return undefined
+    const controller = new AbortController()
+    Promise.allSettled(cart.map((item) => fetchBookById(item.book.id, activeBookFair.id, { signal: controller.signal })))
+      .then((results) => {
+        if (controller.signal.aborted) return
+        const freshBooks = new Map()
+        results.forEach((result) => { if (result.status === 'fulfilled') freshBooks.set(result.value.data.id, result.value.data) })
+        if (freshBooks.size) setCart((current) => current.map((item) => freshBooks.has(item.book.id) ? { ...item, book: freshBooks.get(item.book.id) } : item))
+      })
+    return () => controller.abort()
+  }, [isActive, stockVersion, activeBookFair?.id])
 
   const invoiceCalculation = useMemo(() => calculateInvoice(values, cart), [values, cart])
   const calculationState = {
@@ -283,7 +374,7 @@ export function NewInvoicePage({ isActive, localCurrency, exhibitionName, active
       })
       setSaveState({ status: 'success', error: '' })
       setToast({ tone: 'success', message: toArabicToastMessage(response.message, 'تم حفظ الفاتورة بنجاح') })
-      onDataChanged()
+      onSaved()
     } catch (error) {
       const message = toArabicToastMessage(error instanceof Error ? error.message : '', 'تعذر حفظ الفاتورة. حاول تاني.')
       setSaveState({ status: 'error', error: message })
@@ -313,24 +404,19 @@ export function NewInvoicePage({ isActive, localCurrency, exhibitionName, active
     setSaveState({ status: 'idle', error: '' })
   }
 
-  if (!activeBookFair) {
-    return <div className="page"><section className="page-heading"><div><h1>فاتورة جديدة</h1><p>اختار معرض قبل البحث في كتبه.</p></div><div className="page-heading__icon"><Icon name="invoice" size={28} /></div></section><Notice tone="info" title="اختار معرض أولاً">كل فاتورة لازم تبدأ من معرض محدد علشان تظهر كتب المعرض الصحيح.</Notice><a className="button button--primary empty-state-action" href="#settings"><Icon name="settings" size={18} />فتح إعدادات المعرض</a></div>
-  }
-
   if (receipt) {
-    return <div className="page">{toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}<InvoiceReceipt invoice={receipt} localCurrency={localCurrency} exhibitionName={exhibitionName} onBack={startNewSale} /><div className="receipt-next no-print"><button className="button button--primary" type="button" onClick={startNewSale}><Icon name="add" size={18} />فاتورة جديدة</button><a className="button button--secondary" href="#invoices">عرض كل الفواتير</a></div></div>
+    return <div className="invoice-draft-receipt">{toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}<InvoiceReceipt invoice={receipt} localCurrency={localCurrency} exhibitionName={exhibitionName} onBack={startNewSale} /><div className="receipt-next no-print"><button className="button button--primary" type="button" onClick={onNewTab}><Icon name="add" size={18} />فاتورة جديدة</button><a className="button button--secondary" href="#invoices">عرض كل الفواتير</a></div></div>
   }
 
   return (
-    <div className={`page invoice-page${cart.length === 0 ? ' invoice-page--empty' : ''}`}>
+    <div className={`invoice-page${cart.length === 0 ? ' invoice-page--empty' : ''}`}>
       {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
-      <section className="page-heading"><div><h1>فاتورة جديدة</h1><p>ابحث عن الكتب، راجع الخصومات، وبعدها احفظ البيع.</p></div><div className="page-heading__icon"><Icon name="invoice" size={28} /></div></section>
       <div className="invoice-layout">
         <section className="panel invoice-builder">
           <div className="panel__heading"><div><span className="eyebrow">الكتب</span><h2>تفاصيل الفاتورة</h2></div><span className="format-badge">{cart.length} عنصر</span></div>
           <div className="book-lookup">
             <Icon name="search" size={20} />
-            <input ref={searchInputRef} name="book-search" autoComplete="off" spellCheck="false" type="search" value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={handleSearchKeyDown} placeholder="امسح الكود أو اكتب بداية اسم الكتاب…" aria-label="البحث عن كتاب بالكود أو الاسم" aria-describedby="book-lookup-hint" aria-controls="book-suggestions" aria-expanded={Boolean(search.trim() && searchState.status === 'ready')} />
+            <input ref={searchInputRef} name="book-search" autoComplete="off" spellCheck="false" type="search" value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={handleSearchKeyDown} placeholder="امسح الكود أو اكتب أي جزء من الاسم أو الرقم…" aria-label="البحث عن كتاب بالكود أو الاسم أو الرقم" aria-describedby="book-lookup-hint" aria-controls="book-suggestions" aria-expanded={Boolean(search.trim() && searchState.status === 'ready')} />
             {searchState.status === 'loading' && <span className="spinner" />}
             {search.trim() && searchState.status === 'ready' && <div className="book-suggestions" id="book-suggestions" aria-live="polite">{searchState.books.length ? searchState.books.map((book) => {
               const cartQuantity = Number(cart.find((item) => item.book.id === book.id)?.quantity || 0)

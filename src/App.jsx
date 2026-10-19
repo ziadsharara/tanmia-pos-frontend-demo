@@ -16,7 +16,7 @@ const ReportsPage = lazy(() => loadReportsPage().then((module) => ({ default: mo
 const NewInvoicePage = lazy(() => loadNewInvoicePage().then((module) => ({ default: module.NewInvoicePage })))
 const ExhibitionSettingsPage = lazy(() => loadExhibitionSettingsPage().then((module) => ({ default: module.ExhibitionSettingsPage })))
 
-const reportPages = ['reports-dashboard', 'reports-daily', 'reports-libraries', 'reports-gifts', 'reports-refunds', 'reports-local-currency', 'reports-dollar']
+const reportPages = ['reports-dashboard', 'reports-daily', 'reports-cash', 'reports-visa', 'reports-libraries', 'reports-gifts', 'reports-refunds', 'reports-local-currency', 'reports-dollar']
 
 function pageFromHash() {
   const page = window.location.hash.replace('#', '')
