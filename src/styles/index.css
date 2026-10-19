@@ -653,6 +653,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .history-table--with-books th + th { border-right: 1px solid rgba(255,255,255,.22); }
 .history-table--with-books td + td { border-right: 1px solid var(--border); }
 .history-table--with-books td { font-size: 14px; }
+.history-table--with-books th:nth-child(3), .history-table--with-books .invoice-book-codes-cell { min-width: 160px; }
 .history-table--invoices.history-table--with-books th:nth-child(1) { width: 15%; }
 .history-table--invoices.history-table--with-books th:nth-child(2) { width: 11%; }
 .history-table--invoices.history-table--with-books th:nth-child(3) { width: 8%; }
@@ -715,7 +716,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .invoice-book-values__item + .invoice-book-values__item { padding-top: 6px; border-top: 1px solid var(--border); }
 .invoice-book-names-cell .invoice-book-values__item { overflow-wrap: anywhere; white-space: normal; line-height: 1.6; }
 .invoice-book-values--codes { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; font-weight: 700; }
-.invoice-book-values--codes .invoice-book-values__item { overflow-wrap: anywhere; }
+.invoice-book-values--codes .invoice-book-values__item { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
 .history-table--reports.history-table--with-books .invoice-number-cell { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
 .history-table--reports .invoice-book-values__item { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
 .invoice-status { display: inline-flex; align-items: center; justify-content: center; padding: 5px 8px; border-radius: 999px; font-size: 13px; font-weight: 700; line-height: 1.45; white-space: nowrap; }
@@ -937,8 +938,11 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   .report-table-wrap { max-height: none; }
   .history-table, .history-table tbody, .history-table tr { display: block; width: 100%; min-width: 0; }
   .history-table--reports.history-table--with-books { width: 100%; min-width: 0; table-layout: auto; }
-  .history-table--reports .invoice-book-values--codes .invoice-book-values__item { overflow-wrap: anywhere; white-space: normal; }
+  .history-table--reports .invoice-book-values--codes .invoice-book-values__item { overflow-wrap: normal; white-space: nowrap; }
   .history-table--reports .invoice-book-values__item { white-space: normal; overflow-wrap: anywhere; }
+  .history-table--with-books .invoice-book-codes-cell { min-width: 0; }
+  .history-table--with-books .invoice-book-codes-cell .invoice-book-values { min-width: 0; overflow-x: auto; }
+  .history-table--with-books .invoice-book-values--codes .invoice-book-values__item { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
   .history-table--reports.history-table--with-books .invoice-number-cell { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
   .history-table thead { display: none; }
   .history-table tbody { display: grid; gap: 8px; padding: 0 10px 10px; }
