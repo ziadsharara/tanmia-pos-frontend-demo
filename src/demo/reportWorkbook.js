@@ -114,7 +114,8 @@ export async function buildReportWorkbook(reportType, invoices, dailyPayments = 
   sheet.getRow(1).height = 25
 
   const headerRow = sheet.getRow(2)
-  headerRow.values = reportType === 'DAILY' ? headers.map((header, index) => index === 14 ? 'المحصل في هذا اليوم' : header) : headers
+  headerRow.values = reportType === 'DAILY' ? headers.map((header, index) =>
+    index === 7 ? 'تاريخ الدفع' : index === 14 ? 'المحصل في هذا اليوم' : header) : headers
   headerRow.height = 26
   headerRow.eachCell((cell) => style(cell, { background: colors.dark, foreground: colors.white }))
 
@@ -127,7 +128,8 @@ export async function buildReportWorkbook(reportType, invoices, dailyPayments = 
       spacedLines(invoice.items.map((item) => item.quantity)),
       spacedLines(invoice.items.map((item) => amount(item.unitPrice).toFixed(2))),
       spacedLines(invoice.items.map((item) => (amount(item.unitPrice) * amount(item.quantity)).toFixed(2))),
-      dateValue(invoice.businessDate), dateValue(invoice.refundAt),
+      dateValue(invoice.businessDate), dateValue(reportType === 'DAILY' && invoice.paymentType === 'DIRECT'
+        ? invoice.businessDate : invoice.refundAt),
       types[invoice.paymentType] || '—', invoice.paymentMethod === 'CASH' ? 'نقدي' : invoice.paymentMethod === 'VISA' ? 'فيزا' : '—',
       statuses[invoice.paymentStatus] || '—',
       invoice.libraryName || '—', currencies[invoice.currency] || invoice.currency || '—',
@@ -149,8 +151,33 @@ export async function buildReportWorkbook(reportType, invoices, dailyPayments = 
     })
   })
 
-  let nextRow = invoices.length + 3
-  if (invoices.length) sheet.autoFilter = `A2:P${invoices.length + 2}`
+  if (reportType === 'DAILY') dailyPayments.forEach((payment, index) => {
+    const row = sheet.getRow(invoices.length + index + 3)
+    const books = payment.books || []
+    row.values = [
+      payment.invoiceNumber,
+      spacedLines(books.map((book) => book.bookName)),
+      spacedLines(books.map((book) => book.bookCode)),
+      spacedLines(books.map((book) => book.quantity)),
+      spacedLines(books.map((book) => amount(book.unitPrice).toFixed(2))),
+      spacedLines(books.map((book) => (amount(book.unitPrice) * amount(book.quantity)).toFixed(2))),
+      dateValue(payment.invoiceDate), dateValue(payment.paidAt),
+      payment.invoiceDate < payment.paidAt ? 'تحصيل فاتورة سابقة' : 'تحصيل فاتورة اليوم',
+      payment.paymentMethod === 'CASH' ? 'نقدي' : 'فيزا', 'دفعة مسجلة',
+      payment.libraryName || '—', currencies[payment.currency] || payment.currency || '—',
+      0, amount(payment.amount), amount(payment.remainingAmount),
+    ]
+    row.height = Math.max(28, books.length * 22)
+    row.eachCell({ includeEmpty: true }, (cell, column) => style(cell, {
+      background: column === 11 ? colors.greenBg : column === 15 ? colors.greenBg : colors.white,
+      foreground: column === 11 || column === 15 ? colors.green : colors.ink,
+      wrapText: column >= 2 && column <= 6,
+      format: column === 7 || column === 8 ? 'yyyy-mm-dd' : column >= 14 ? '#,##0.00' : undefined,
+    }))
+  })
+
+  let nextRow = invoices.length + (reportType === 'DAILY' ? dailyPayments.length : 0) + 3
+  if (invoices.length || reportType === 'DAILY' && dailyPayments.length) sheet.autoFilter = `A2:P${nextRow - 1}`
   else {
     sheet.mergeCells(`A${nextRow}:P${nextRow}`)
     const empty = sheet.getCell(`A${nextRow}`)

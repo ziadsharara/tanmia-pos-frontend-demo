@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { recordLibraryPayment } from '../api/invoices.js'
 import { exportReport, fetchDailyLibraryPayments, fetchReportInvoices, fetchReportRefundInvoices } from '../api/reports.js'
+import { InvoiceBookAmounts, InvoiceBookCodes, InvoiceBookNames, InvoiceBookQuantities, ReportMoney } from '../components/invoices/InvoiceBooks.jsx'
 import { InvoiceDetailsOverlay } from '../components/invoices/InvoiceDetailsOverlay.jsx'
 import { InvoicesTable } from '../components/invoices/InvoicesTable.jsx'
 import { LibraryPaymentModal } from '../components/invoices/LibraryPaymentModal.jsx'
@@ -11,7 +12,7 @@ import { Icon } from '../components/ui/Icon.jsx'
 import { Notice } from '../components/ui/Notice.jsx'
 import { Toast } from '../components/ui/Toast.jsx'
 import { useInvoiceDetails } from '../hooks/useInvoiceDetails.js'
-import { formatMoney, getLocalCurrencySalesReportName } from '../utils/currency.js'
+import { getLocalCurrencySalesReportName } from '../utils/currency.js'
 import { toArabicToastMessage } from '../utils/messages.js'
 import { calculateReportTotals } from '../utils/reportTotals.js'
 
@@ -226,7 +227,37 @@ export function ReportsPage({ reportPage, activeBookFair, localCurrency, dataVer
       {reportPage === 'reports-dashboard' && state.status === 'ready' && invoices.length > 0 && <DashboardOverview invoices={invoices} />}
       {state.status === 'ready' && (invoices.length > 0 || dailyPayments?.length > 0) && <ReportTotals totals={reportTotals} localCurrency={localCurrency} reportPage={reportPage} />}
 
-      {reportPage === 'reports-daily' && state.status === 'ready' && dailyPayments.length > 0 && <section className="panel catalog-panel"><div className="catalog-toolbar"><div><h2>دفعات المكتبات المحصلة يوم {date}</h2><p>تظهر الدفعة هنا بتاريخ سدادها، حتى لو كانت الفاتورة من يوم سابق.</p></div><div className="catalog-count"><span>الدفعات</span><strong>{dailyPayments.length}</strong></div></div><div className="table-wrap catalog-table-wrap history-table-wrap"><table className="history-table"><thead><tr><th>رقم الفاتورة</th><th>المكتبة</th><th>تاريخ الدفع</th><th>طريقة الدفع</th><th>المبلغ المحصل</th></tr></thead><tbody>{dailyPayments.map((payment) => <tr key={payment.id}><td data-label="رقم الفاتورة" dir="ltr">{payment.invoiceNumber}</td><td data-label="المكتبة">{payment.libraryName || '—'}</td><td data-label="تاريخ الدفع">{payment.paidAt}</td><td data-label="طريقة الدفع">{payment.paymentMethod === 'CASH' ? 'نقدي' : 'فيزا'}</td><td data-label="المبلغ المحصل" dir="ltr">{formatMoney(payment.amount, payment.currency, localCurrency)}</td></tr>)}</tbody></table></div></section>}
+      {reportPage === 'reports-daily' && state.status === 'ready' && dailyPayments.length > 0 && (
+        <section className="panel catalog-panel">
+          <div className="catalog-toolbar">
+            <div><h2>دفعات المكتبات المحصلة يوم {date}</h2><p>تفاصيل الفاتورة الأصلية مع مبلغ الدفعة المسجل في هذا اليوم.</p></div>
+            <div className="catalog-count"><span>الدفعات</span><strong>{dailyPayments.length}</strong></div>
+          </div>
+          <p className="report-table-scroll-hint">↔ مرّر الجدول أفقياً لعرض كل الأعمدة</p>
+          <div className="table-wrap catalog-table-wrap history-table-wrap report-table-wrap">
+            <table className="history-table history-table--with-books history-table--reports">
+              <thead><tr><th>رقم الفاتورة</th><th>أسماء الكتب</th><th>أكواد الكتب</th><th>الكمية</th><th>سعر الوحدة قبل الخصم</th><th>إجمالي الكتاب قبل الخصم</th><th>تاريخ الفاتورة</th><th>تاريخ الدفع</th><th>المكتبة</th><th>طريقة الدفع</th><th>إجمالي الفاتورة الأصلية</th><th>المحصل في هذا اليوم</th><th>المتبقي حالياً</th></tr></thead>
+              <tbody>{dailyPayments.map((payment) => (
+                <tr key={payment.id}>
+                  <td data-label="رقم الفاتورة" className="code-cell invoice-number-cell" dir="ltr">{payment.invoiceNumber}</td>
+                  <td data-label="أسماء الكتب" className="invoice-book-names-cell"><InvoiceBookNames books={payment.books} /></td>
+                  <td data-label="أكواد الكتب" className="invoice-book-codes-cell"><InvoiceBookCodes books={payment.books} /></td>
+                  <td data-label="الكمية" className="invoice-book-quantities-cell"><InvoiceBookQuantities books={payment.books} /></td>
+                  <td data-label="سعر الوحدة قبل الخصم" className="history-money-cell invoice-book-amounts-cell"><InvoiceBookAmounts books={payment.books} currency={payment.currency} localCurrency={localCurrency} /></td>
+                  <td data-label="إجمالي الكتاب قبل الخصم" className="history-money-cell invoice-book-amounts-cell"><InvoiceBookAmounts books={payment.books} currency={payment.currency} localCurrency={localCurrency} total /></td>
+                  <td data-label="تاريخ الفاتورة">{payment.invoiceDate || '—'}</td>
+                  <td data-label="تاريخ الدفع">{payment.paidAt}</td>
+                  <td data-label="المكتبة">{payment.libraryName || '—'}</td>
+                  <td data-label="طريقة الدفع">{payment.paymentMethod === 'CASH' ? 'نقدي' : 'فيزا'}</td>
+                  <td data-label="إجمالي الفاتورة الأصلية" className="history-money-cell"><ReportMoney value={payment.invoiceTotal} currency={payment.currency} localCurrency={localCurrency} /></td>
+                  <td data-label="المحصل في هذا اليوم" className="history-money-cell"><strong><ReportMoney value={payment.amount} currency={payment.currency} localCurrency={localCurrency} /></strong></td>
+                  <td data-label="المتبقي حالياً" className="history-money-cell"><ReportMoney value={payment.remainingAmount} currency={payment.currency} localCurrency={localCurrency} /></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="panel catalog-panel">
         <div className="catalog-toolbar"><div><h2>{report.title}</h2><p>{activeBookFair.name}</p></div><div className="catalog-count"><Icon name="invoice" size={17} /><span>الإجمالي</span><strong>{invoices.length}</strong></div></div>

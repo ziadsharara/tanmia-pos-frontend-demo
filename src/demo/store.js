@@ -76,7 +76,10 @@ function dailyPayments(state, fairId, date) {
     .flatMap((invoice) => (invoice.libraryPayments || [])
       .filter((payment) => payment.paidAt === date)
       .map((payment) => ({ ...payment, invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber,
-        libraryName: invoice.libraryName, currency: invoice.currency })))
+        libraryName: invoice.libraryName, currency: invoice.currency,
+        invoiceDate: invoice.businessDate, invoiceTotal: invoice.totalAmountAfterDiscounts,
+        remainingAmount: invoice.libraryRemainingPaymentAmount,
+        books: invoice.items.map(({ bookCode, bookName, unitPrice, quantity }) => ({ bookCode, bookName, unitPrice, quantity })) })))
     .sort((a, b) => a.id - b.id)
 }
 
