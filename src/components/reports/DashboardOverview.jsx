@@ -6,15 +6,17 @@ const paymentTypes = [
 ]
 
 const paymentStatuses = [
+  { key: 'ON_ACCOUNT', label: 'على حساب مكتبة', tone: 'warning' },
   { key: 'PAID', label: 'مدفوعة', tone: 'success' },
   { key: 'PARTIALLY_PAID', label: 'مدفوعة جزئياً', tone: 'warning' },
   { key: 'UNPAID', label: 'غير مدفوعة', tone: 'error' },
   { key: 'NO_PAYMENT_REQUIRED', label: 'هدايا', tone: 'primary' },
+  { key: 'PARTIAL_REFUND', label: 'مرتجع جزئي', tone: 'error' },
   { key: 'REFUND', label: 'مرتجعة', tone: 'error' },
 ]
 
 function getPaymentTypeKey(invoice) {
-  if (invoice.paymentStatus === 'REFUND') return 'refunds'
+  if (invoice.refundAt || invoice.paymentStatus === 'REFUND') return 'refunds'
   if (invoice.paymentType === 'WHOLESALE_CREDIT') return 'libraries'
   if (invoice.paymentType === 'GIFT') return 'gifts'
   return 'direct'
@@ -33,7 +35,8 @@ function buildDashboardData(invoices) {
 
   invoices.forEach((invoice) => {
     typeCounts[getPaymentTypeKey(invoice)] += 1
-    statusCounts[invoice.paymentStatus] = (statusCounts[invoice.paymentStatus] || 0) + 1
+    const status = invoice.refundAt && invoice.paymentStatus !== 'REFUND' ? 'PARTIAL_REFUND' : invoice.paymentType === 'WHOLESALE_CREDIT' && invoice.paymentStatus !== 'REFUND' ? 'ON_ACCOUNT' : invoice.paymentStatus
+    statusCounts[status] = (statusCounts[status] || 0) + 1
     const date = getInvoiceDate(invoice)
     if (date) dailyCounts.set(date, (dailyCounts.get(date) || 0) + 1)
   })
@@ -121,7 +124,7 @@ export function DashboardOverview({ invoices }) {
         <div className="dashboard-kpi dashboard-kpi--primary"><span>إجمالي الفواتير</span><strong>{total}</strong><small>كل العمليات المسجلة</small></div>
         <div className="dashboard-kpi dashboard-kpi--success"><span>البيع المباشر</span><strong>{typeCounts.direct}</strong><small>فواتير مدفوعة مباشرة</small></div>
         <div className="dashboard-kpi dashboard-kpi--warning"><span>مبيعات المكتبات</span><strong>{typeCounts.libraries}</strong><small>فواتير البيع الآجل</small></div>
-        <div className="dashboard-kpi dashboard-kpi--error"><span>المرتجعات</span><strong>{typeCounts.refunds}</strong><small>فواتير تم استرجاعها</small></div>
+        <div className="dashboard-kpi dashboard-kpi--error"><span>المرتجعات</span><strong>{typeCounts.refunds}</strong><small>فواتير لها مرتجعات جزئية أو كاملة</small></div>
       </div>
 
       <div className="dashboard-visuals">

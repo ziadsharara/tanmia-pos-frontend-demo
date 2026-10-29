@@ -12,8 +12,7 @@ import { toArabicToastMessage } from '../utils/messages.js'
 
 const createInitialValues = (primaryCurrency = '') => ({
   currency: primaryCurrency, paymentType: 'DIRECT', paymentMethod: '', libraryName: '',
-  selectedLibraryId: '',
-  libraryPartialPaymentAmount: '0',
+  selectedLibraryId: '', notes: '',
   invoiceDiscountPercentage: '0', invoiceFixedDiscountAmount: '0',
 })
 
@@ -77,12 +76,10 @@ function calculateInvoice(values, cart) {
 function buildRequest(values, cart, invoiceCalculation) {
   const calculation = invoiceCalculation.calculation
   const calculatedItems = new Map(calculation.items.map((item) => [item.bookId, item]))
-  const libraryPartialPaymentAmount = values.paymentType === 'WHOLESALE_CREDIT'
-    ? roundMoney(Number(values.libraryPartialPaymentAmount || 0))
-    : null
 
   return {
     currency: values.currency,
+    notes: values.notes.trim() || null,
     totalAmountBeforeBooksDiscount: calculation.totalAmountBeforeDiscount,
     booksDiscountAmount: calculation.booksDiscountAmount,
     totalAmountAfterBooksDiscount: calculation.subtotalAfterBookDiscounts,
@@ -91,14 +88,10 @@ function buildRequest(values, cart, invoiceCalculation) {
     totalAmountAfterBillDiscount: calculation.totalAmountAfterDiscounts,
     dueAmount: invoiceCalculation.amountDue,
     paymentType: values.paymentType,
-    paymentMethod: values.paymentType === 'DIRECT' || (values.paymentType === 'WHOLESALE_CREDIT' && libraryPartialPaymentAmount > 0)
+    paymentMethod: values.paymentType === 'DIRECT'
       ? values.paymentMethod || null
       : null,
     libraryName: values.paymentType === 'WHOLESALE_CREDIT' ? values.libraryName.trim() || null : null,
-    libraryPartialPaymentAmount,
-    libraryRemainingPaymentAmount: values.paymentType === 'WHOLESALE_CREDIT'
-      ? roundMoney(calculation.totalAmountAfterDiscounts - libraryPartialPaymentAmount)
-      : null,
     items: cart.map((item) => {
       const calculated = calculatedItems.get(item.book.id)
       return {
@@ -122,7 +115,6 @@ function validateSale(values, cart) {
   if (cart.some((item) => Number(item.quantity) > Number(item.book.quantity))) return 'كمية كتاب في الفاتورة أكبر من المخزون الحالي.'
   if (values.paymentType === 'DIRECT' && !values.paymentMethod) return 'اختار طريقة الدفع للبيع المباشر.'
   if (values.paymentType === 'WHOLESALE_CREDIT' && !values.libraryName.trim()) return 'اكتب اسم المكتبة للفاتورة الآجلة.'
-  if (values.paymentType === 'WHOLESALE_CREDIT' && Number(values.libraryPartialPaymentAmount || 0) > 0 && !values.paymentMethod) return 'اختار طريقة دفع المبلغ المدفوع من المكتبة.'
   return ''
 }
 
@@ -337,7 +329,6 @@ function InvoiceDraft({ draftId, isActive, localCurrency, exhibitionName, active
         next.paymentMethod = ''
         next.libraryName = ''
         next.selectedLibraryId = ''
-        next.libraryPartialPaymentAmount = '0'
       }
       return next
     })

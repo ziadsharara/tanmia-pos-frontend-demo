@@ -17,11 +17,13 @@ function daysAgo(days) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
+const paidAmount = invoice => (invoice.libraryPayments || []).reduce((sum,p) => sum + p.amount, 0)
+
 function makeInvoice(id, fair, selection, number) {
   const kind = number % 7
   const paymentType = kind === 2 || kind === 5 ? 'WHOLESALE_CREDIT' : kind === 4 ? 'GIFT' : 'DIRECT'
   const currency = kind === 6 ? 'USD' : fair.primaryCurrency
-  const paymentMethod = paymentType === 'GIFT' || kind === 5 ? null : kind % 2 ? 'VISA' : 'CASH'
+  const paymentMethod = paymentType === 'DIRECT' && [0, 7, 28].includes(number) ? 'COUPON' : paymentType === 'GIFT' || kind === 5 ? null : kind % 2 ? 'VISA' : 'CASH'
   const businessDate = daysAgo(number % 16)
   const items = selection.map((book, index) => {
     const quantity = index + 1
@@ -51,7 +53,7 @@ function makeInvoice(id, fair, selection, number) {
     amountDue: paymentType === 'GIFT' ? 0 : total,
     libraryPayments: paymentType === 'WHOLESALE_CREDIT' && paid > 0
       ? [{ id: id * 10, amount: paid, paymentMethod, paidAt: businessDate }] : [],
-    items, refundAt: refunded ? daysAgo(number % 5) : null,
+    items, notes: number % 4 === 0 ? 'فاتورة تجريبية لعرض الملاحظات وتفاصيل العملية' : null, couponCollections: paymentMethod === 'COUPON' && number === 7 ? [{ requestId: `seed-coupon-${id}`, amount: Math.round(total * 0.4 * 100) / 100, paidAt: daysAgo(1), paymentMethod: 'CASH', notes: 'تحصيل جزئي تجريبي' }] : [], refundAt: refunded ? [businessDate, daysAgo(number % 5)].sort().at(-1) : null,
   }
 }
 
@@ -74,13 +76,23 @@ export function createSeedData() {
         invoice.paymentMethod = 'CASH'
         invoice.paymentStatus = 'PARTIALLY_PAID'
       }
+      if (invoice.paymentMethod === 'COUPON') invoice.paymentStatus = invoice.couponCollections.length ? 'PARTIALLY_PAID' : 'UNPAID'
+      if (invoice.paymentStatus === 'REFUND') invoice.returnHistory = [{ id: `seed-return-${invoice.id}`, date: invoice.refundAt, value: invoice.totalAmountAfterDiscounts, cashAmount: invoice.paymentType === 'GIFT' || invoice.paymentMethod === 'COUPON' ? 0 : invoice.amountDue, revision: 0, revisions: [], notes: 'مرتجع تجريبي كامل', items: invoice.items.map(i => ({ itemId: i.id, bookName: i.bookName, bookCode: i.bookCode, quantity: i.quantity, value: i.totalAmountAfterDiscount })) }]
+      if ([1, 2, 4, 28].includes(number)) {
+        const item = invoice.items[1]
+        const value = Math.round(item.totalAmountAfterDiscount / item.quantity * 100) / 100
+        item.returnedQuantity = 1
+        const cash = invoice.paymentType === 'GIFT' || invoice.paymentMethod === 'COUPON' ? 0 : invoice.paymentType === 'WHOLESALE_CREDIT' ? Math.round(Math.min(value, paidAmount(invoice)) / 2 * 100) / 100 : value
+        invoice.returnHistory = [{ id: `seed-partial-${invoice.id}`, date: invoice.businessDate, value, cashAmount: cash, revision: 0, revisions: [], notes: 'مرتجع جزئي تجريبي مع ملاحظة', items: [{ itemId: item.id, bookName: item.bookName, bookCode: item.bookCode, quantity: 1, value }] }]
+        invoice.refundAt = invoice.businessDate
+      }
       invoices.push(invoice)
     }
   }
   const stock = books.map((book) => ({ ...book }))
-  const stockById = new Map(stock.map((book) => [book.id, book]))
+  const stockById = new Map(stock.map((book) => [`${book.bookFairId}:${book.id}`, book]))
   invoices.filter((invoice) => invoice.paymentStatus !== 'REFUND').forEach((invoice) => {
-    invoice.items.forEach((item) => { stockById.get(item.bookId).quantity -= item.quantity })
+    invoice.items.forEach((item) => { stockById.get(`${invoice.bookFairId}:${item.bookId}`).quantity -= item.quantity - (item.returnedQuantity || 0) })
   })
   return {
     version: 5,

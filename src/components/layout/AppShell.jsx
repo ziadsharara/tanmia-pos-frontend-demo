@@ -51,6 +51,10 @@ export function AppShell({ activePage, exhibitionName, localCurrency, onNavigate
                 <span>{item.label}</span>
               </a>
             ))}
+            <a href="#libraries" onClick={(event) => navigate(event, 'libraries')} className={`nav__item nav__desktop-destination ${activePage === 'libraries' ? 'nav__item--active' : ''}`} aria-current={activePage === 'libraries' ? 'page' : undefined}>
+              <Icon name="books" />
+              <span>حسابات المكتبات</span>
+            </a>
             <a href="#reports-dashboard" onClick={(event) => navigate(event, 'reports-dashboard')} className={`nav__item nav__desktop-destination ${reportsActive ? 'nav__item--active' : ''}`} aria-current={reportsActive ? 'page' : undefined}>
               <Icon name="reports" />
               <span>التقارير</span>
@@ -59,7 +63,7 @@ export function AppShell({ activePage, exhibitionName, localCurrency, onNavigate
               <Icon name="settings" />
               <span>إعدادات المعرض</span>
             </a>
-            <button ref={mobileMoreTriggerRef} className={`nav__item nav__more-trigger ${reportsActive || activePage === 'settings' ? 'nav__item--active' : ''}`} type="button" aria-expanded={mobileMoreOpen} aria-controls="mobile-more-menu" onClick={() => setMobileMoreOpen((current) => !current)}>
+            <button ref={mobileMoreTriggerRef} className={`nav__item nav__more-trigger ${reportsActive || activePage === 'settings' || activePage === 'libraries' ? 'nav__item--active' : ''}`} type="button" aria-expanded={mobileMoreOpen} aria-controls="mobile-more-menu" onClick={() => setMobileMoreOpen((current) => !current)}>
               <Icon name="menu" />
               <span>المزيد</span>
             </button>
@@ -76,8 +80,9 @@ export function AppShell({ activePage, exhibitionName, localCurrency, onNavigate
 
         {mobileMoreOpen && <>
           <button className="mobile-more__backdrop" type="button" aria-label="إغلاق قائمة المزيد" onClick={closeMobileMore} />
-          <section ref={mobileMoreRef} className="mobile-more" id="mobile-more-menu" role="dialog" aria-modal="true" aria-label="التقارير والإعدادات" tabIndex="-1">
+          <section ref={mobileMoreRef} className="mobile-more" id="mobile-more-menu" role="dialog" aria-modal="true" aria-label="المكتبات والتقارير والإعدادات" tabIndex="-1">
             <header className="mobile-more__header"><div><span>المعرض النشط</span><strong>{exhibitionName || 'لم يتم اختيار معرض'}</strong></div><button className="icon-button" type="button" aria-label="إغلاق" autoFocus onClick={closeMobileMore}><Icon name="close" /></button></header>
+            <a className={`mobile-more__settings ${activePage === 'libraries' ? 'is-active' : ''}`} href="#libraries" onClick={(event) => navigateFromMobileMenu(event, 'libraries')} aria-current={activePage === 'libraries' ? 'page' : undefined}><Icon name="books" size={18} />حسابات المكتبات</a>
             <a className={`mobile-more__settings ${reportsActive ? 'is-active' : ''}`} href="#reports-dashboard" onClick={(event) => navigateFromMobileMenu(event, 'reports-dashboard')} aria-current={reportsActive ? 'page' : undefined}><Icon name="reports" size={18} />التقارير</a>
             <a className={`mobile-more__settings ${activePage === 'settings' ? 'is-active' : ''}`} href="#settings" onClick={(event) => navigateFromMobileMenu(event, 'settings')} aria-current={activePage === 'settings' ? 'page' : undefined}><Icon name="settings" size={18} />إعدادات المعرض</a>
           </section>

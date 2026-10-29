@@ -5,22 +5,24 @@ import { ACTIVE_BOOK_FAIR_KEY, normalizeBookFair } from './data/bookFairs.js'
 
 const loadBooksPage = () => import('./pages/BooksPage.jsx')
 const loadInvoicesPage = () => import('./pages/InvoicesPage.jsx')
+const loadLibrariesPage = () => import('./pages/LibrariesPage.jsx')
 const loadReturnsPage = () => import('./pages/ReturnsPage.jsx')
 const loadReportsPage = () => import('./pages/ReportsPage.jsx')
 const loadNewInvoicePage = () => import('./pages/NewInvoicePage.jsx')
 const loadExhibitionSettingsPage = () => import('./pages/ExhibitionSettingsPage.jsx')
 const BooksPage = lazy(() => loadBooksPage().then((module) => ({ default: module.BooksPage })))
 const InvoicesPage = lazy(() => loadInvoicesPage().then((module) => ({ default: module.InvoicesPage })))
+const LibrariesPage = lazy(() => loadLibrariesPage().then((module) => ({ default: module.LibrariesPage })))
 const ReturnsPage = lazy(() => loadReturnsPage().then((module) => ({ default: module.ReturnsPage })))
 const ReportsPage = lazy(() => loadReportsPage().then((module) => ({ default: module.ReportsPage })))
 const NewInvoicePage = lazy(() => loadNewInvoicePage().then((module) => ({ default: module.NewInvoicePage })))
 const ExhibitionSettingsPage = lazy(() => loadExhibitionSettingsPage().then((module) => ({ default: module.ExhibitionSettingsPage })))
 
-const reportPages = ['reports-dashboard', 'reports-daily', 'reports-cash', 'reports-visa', 'reports-libraries', 'reports-gifts', 'reports-refunds', 'reports-local-currency', 'reports-dollar']
+const reportPages = ['reports-dashboard', 'reports-daily', 'reports-cash', 'reports-visa', 'reports-libraries', 'reports-gifts', 'reports-coupons', 'reports-refunds', 'reports-local-currency', 'reports-dollar']
 
 function pageFromHash() {
-  const page = window.location.hash.replace('#', '')
-  return ['books', 'new-invoice', 'invoices', 'returns', 'settings', ...reportPages].includes(page) ? page : 'new-invoice'
+  const page = window.location.hash.replace('#', '').split('?')[0]
+  return ['books', 'new-invoice', 'invoices', 'libraries', 'returns', 'settings', ...reportPages].includes(page) ? page : 'new-invoice'
 }
 
 export default function App() {
@@ -38,7 +40,7 @@ export default function App() {
         const fairs = (response.data || []).map(normalizeBookFair)
         const savedId = Number(localStorage.getItem(ACTIVE_BOOK_FAIR_KEY))
         setBookFairs(fairs)
-        setActiveBookFair(fairs.find((fair) => fair.id === savedId) || fairs[0] || null)
+        setActiveBookFair(fairs.find((fair) => fair.id === savedId) || null)
         setBookFairsState({ status: 'ready', error: '' })
       })
       .catch((error) => {
@@ -98,6 +100,7 @@ export default function App() {
       loadBooksPage()
       loadInvoicesPage()
       loadReturnsPage()
+      loadLibrariesPage()
       loadReportsPage()
       loadNewInvoicePage()
       loadExhibitionSettingsPage()
@@ -117,6 +120,7 @@ export default function App() {
     <AppShell activePage={page} exhibitionName={activeBookFair?.name} localCurrency={activeBookFair?.localCurrency} onNavigate={openPage}>
       {visitedPages.has('new-invoice') && <div className="route-view" hidden={page !== 'new-invoice'}><Suspense fallback={<RouteLoading />}><NewInvoicePage isActive={page === 'new-invoice'} localCurrency={activeBookFair?.localCurrency} exhibitionName={activeBookFair?.name} activeBookFair={activeBookFair} onDataChanged={refreshData} /></Suspense></div>}
       {visitedPages.has('invoices') && <div className="route-view" hidden={page !== 'invoices'}><Suspense fallback={<RouteLoading />}><InvoicesPage isActive={page === 'invoices'} localCurrency={activeBookFair?.localCurrency} exhibitionName={activeBookFair?.name} activeBookFair={activeBookFair} dataVersion={dataVersion} onDataChanged={refreshData} /></Suspense></div>}
+      {visitedPages.has('libraries') && <div className="route-view" hidden={page !== 'libraries'}><Suspense fallback={<RouteLoading />}><LibrariesPage key={activeBookFair?.id || 'none'} isActive={page === 'libraries'} activeBookFair={activeBookFair} localCurrency={activeBookFair?.localCurrency} dataVersion={dataVersion} onDataChanged={refreshData} /></Suspense></div>}
       {visitedPages.has('returns') && <div className="route-view" hidden={page !== 'returns'}><Suspense fallback={<RouteLoading />}><ReturnsPage isActive={page === 'returns'} localCurrency={activeBookFair?.localCurrency} activeBookFair={activeBookFair} dataVersion={dataVersion} onDataChanged={refreshData} /></Suspense></div>}
       {reportsVisited && <div className="route-view" hidden={!reportsActive}><Suspense fallback={<RouteLoading />}><ReportsPage reportPage={reportsActive ? page : null} localCurrency={activeBookFair?.localCurrency} activeBookFair={activeBookFair} dataVersion={dataVersion} onDataChanged={refreshData} /></Suspense></div>}
       {visitedPages.has('books') && <div className="route-view" hidden={page !== 'books'}><Suspense fallback={<RouteLoading />}><BooksPage isActive={page === 'books'} localCurrency={activeBookFair?.localCurrency} activeBookFair={activeBookFair} dataVersion={dataVersion} onDataChanged={refreshData} /></Suspense></div>}

@@ -2,9 +2,9 @@ import { getCurrencyName } from '../../utils/currency.js'
 
 const moneyFormatter = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-export function ReportMoney({ value, currency, localCurrency }) {
+export function ReportMoney({ value, currency, localCurrency, tone = 'sale' }) {
   return (
-    <span className="report-money" dir="ltr">
+    <span className={`report-money money--${tone} ${Number(value || 0) === 0 ? 'money--zero' : ''}`} dir="ltr">
       <span className="report-money__value">{moneyFormatter.format(Number(value ?? 0))}</span>
       <small className="report-money__currency" dir="rtl">{getCurrencyName(currency, localCurrency)}</small>
     </span>

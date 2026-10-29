@@ -12,7 +12,7 @@ function NumberField({ className = '', name, label, value, onChange, min = 0, ma
 
 function MoneyValue({ value, currency, localCurrency }) {
   const [amount, ...unitParts] = formatMoney(value, currency, localCurrency).split(' ')
-  return <strong className="invoice-money"><bdi dir="ltr">{amount}</bdi><span>{unitParts.join(' ')}</span></strong>
+  return <strong className="invoice-money money--sale"><bdi dir="ltr">{amount}</bdi><span>{unitParts.join(' ')}</span></strong>
 }
 
 export function InvoiceCart({ items, currency, calculation, disabled, onChange, onRemove, localCurrency }) {

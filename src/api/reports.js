@@ -10,7 +10,8 @@ export function fetchReportInvoices({ bookFairId, date, paymentType, paymentMeth
 }
 
 export function fetchDailyLibraryPayments({ bookFairId, date, signal } = {}) {
-  const params = new URLSearchParams({ bookFairId: String(bookFairId), date })
+  const params = new URLSearchParams({ bookFairId: String(bookFairId) })
+  if (date) params.set('date', date)
   return request(`/reports/library-payments?${params}`, { signal })
 }
 

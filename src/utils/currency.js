@@ -1,5 +1,7 @@
+import { getCurrencyDetails } from '../data/bookFairs.js'
+
 export function getCurrencyName(currency, localCurrency) {
-  return currency === 'USD' ? 'دولار' : localCurrency?.nameAr || 'العملة المحلية'
+  return currency === 'USD' ? 'دولار' : currency && currency !== localCurrency?.code ? getCurrencyDetails(currency).nameAr : localCurrency?.nameAr || 'العملة المحلية'
 }
 
 export function formatMoney(value, currency, localCurrency) {

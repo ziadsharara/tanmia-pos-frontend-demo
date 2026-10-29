@@ -1,3 +1,4 @@
+import { TablePagination } from '../ui/TablePagination.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../ui/Icon.jsx'
 
@@ -36,9 +37,10 @@ export function PreviewTable({ preview, localCurrency, onDeleteRow, onEditRow })
 
   return (
     <div className="preview-table-block">
+      {totalPages > 1 && <TablePagination page={page} totalPages={totalPages} onPrevious={() => setPage((current) => current - 1)} onNext={() => setPage((current) => current + 1)} className="preview-pagination" ariaLabel="صفحات معاينة الاستيراد" />}
       <div className="table-wrap">
         <table className="preview-table">
-          <thead><tr><th>#</th><th>الكود</th><th>الكتاب والمؤلف</th><th>العدد</th><th>السعر بالـ{localCurrency.nameAr}</th><th>السعر بالدولار</th><th>الحالة</th><th>إجراء</th></tr></thead>
+          <thead><tr><th>#</th><th>الكود</th><th>الكتاب والمؤلف</th><th>العدد</th><th>السعر بالـ{localCurrency.nameAr}</th><th>السعر بالدولار</th><th>الحالة</th><th className="table-actions-cell">إجراء</th></tr></thead>
           <tbody>
           {visibleRows.map((row) => {
             const rowErrors = groupedErrors.get(row.rowNumber) || []
@@ -55,14 +57,13 @@ export function PreviewTable({ preview, localCurrency, onDeleteRow, onEditRow })
                     <ul className="row-errors">{rowErrors.map((error, errorIndex) => <li key={`${error.column}-${errorIndex}`}><b>{error.column}:</b> {error.message}</li>)}</ul>
                   ) : <span className="status-pill status-pill--success">جاهز</span>}
                 </td>
-                <td>{rowErrors.length ? <div className="preview-row-actions"><button className="button button--table" type="button" onClick={() => onEditRow(row)}><Icon name="edit" size={15} />تعديل</button><button className="button button--table-danger" type="button" onClick={() => onDeleteRow(row.rowNumber)}><Icon name="trash" size={15} />حذف الصف</button></div> : '—'}</td>
+                <td className="table-actions-cell">{rowErrors.length ? <div className="table-actions" role="group" aria-label={`إجراءات الصف ${row.rowNumber}`}><button className="table-action" type="button" aria-label="تعديل" title="تعديل الصف" onClick={() => onEditRow(row)}><Icon name="edit" size={17} /></button><button className="table-action table-action--danger" type="button" aria-label="حذف الصف" title="حذف الصف" onClick={() => onDeleteRow(row.rowNumber)}><Icon name="trash" size={17} /></button></div> : '—'}</td>
               </tr>
             )
           })}
           </tbody>
         </table>
       </div>
-      {totalPages > 1 && <div className="pagination preview-pagination"><span>صفحة <strong>{page + 1}</strong> من <strong>{totalPages}</strong></span><div><button className="button button--secondary" type="button" disabled={page === 0} onClick={() => setPage((current) => current - 1)}><Icon name="next" size={16} />السابق</button><button className="button button--secondary" type="button" disabled={page + 1 >= totalPages} onClick={() => setPage((current) => current + 1)}>التالي<Icon name="previous" size={16} /></button></div></div>}
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { TablePagination } from '../ui/TablePagination.jsx'
 import { Icon } from '../ui/Icon.jsx'
 import { Notice } from '../ui/Notice.jsx'
 
@@ -56,9 +57,10 @@ export function BookCatalog({ search, onSearchChange, state, page, onPageChange,
 
       {state.status !== 'error' && data && books.length > 0 && (
         <>
+          <TablePagination page={data.page} totalPages={data.totalPages} hasNext={data.hasNext} loading={isLoading} onPrevious={() => onPageChange(page - 1)} onNext={() => onPageChange(page + 1)} ariaLabel="صفحات الكتب" />
           <div className={`table-wrap catalog-table-wrap ${isLoading ? 'catalog-table-wrap--loading' : ''}`}>
             <table className="catalog-table">
-              <thead><tr><th>الكود</th><th>اسم الكتاب</th><th>المؤلف</th><th>السعر بـ{localCurrency.nameAr}</th><th>السعر بالدولار</th><th>الرصيد</th><th>إجراء</th></tr></thead>
+              <thead><tr><th>الكود</th><th>اسم الكتاب</th><th>المؤلف</th><th>السعر بـ{localCurrency.nameAr}</th><th>السعر بالدولار</th><th>الرصيد</th><th className="table-actions-cell">إجراء</th></tr></thead>
               <tbody>
                 {books.map((book) => (
                   <tr key={book.id}>
@@ -68,12 +70,11 @@ export function BookCatalog({ search, onSearchChange, state, page, onPageChange,
                     <td className="price-cell" dir="ltr"><span className="table-price"><strong>{formatPrice(book.price)}</strong><small>{localCurrency.nameAr}</small></span></td>
                     <td className="price-cell" dir="ltr"><span className="table-price"><strong>{formatPrice(book.priceInUSD)}</strong><small>دولار</small></span></td>
                     <td><StockBadge quantity={book.quantity} /></td>
-                    <td>
-                      <div className="catalog-row-actions">
-                        <button className="button button--table" type="button" onClick={() => onEdit(book.id)}><Icon name="edit" size={16} />تعديل</button>
-                        <button className="button button--table-danger" type="button" disabled={isDeletingAll || deletingBookId !== null} onClick={() => onDelete(book)}>
+                    <td className="table-actions-cell">
+                      <div className="table-actions" role="group" aria-label={`إجراءات الكتاب ${book.name}`}>
+                        <button className="table-action" type="button" aria-label="تعديل" title="تعديل الكتاب" disabled={isDeletingAll || deletingBookId !== null} onClick={() => onEdit(book.id)}><Icon name="edit" size={17} /></button>
+                        <button className="table-action table-action--danger" type="button" aria-label="حذف" title="حذف الكتاب" disabled={isDeletingAll || deletingBookId !== null} onClick={() => onDelete(book)}>
                           {deletingBookId === book.id ? <span className="spinner" /> : <Icon name="trash" size={16} />}
-                          {deletingBookId === book.id ? 'جاري الحذف...' : 'حذف'}
                         </button>
                       </div>
                     </td>
@@ -82,10 +83,7 @@ export function BookCatalog({ search, onSearchChange, state, page, onPageChange,
               </tbody>
             </table>
           </div>
-          <div className="pagination" aria-label="صفحات الكتب">
-            <span>صفحة <strong>{data.page + 1}</strong> من <strong>{data.totalPages}</strong></span>
-            <div><button className="button button--secondary" type="button" disabled={page === 0 || isLoading} onClick={() => onPageChange(page - 1)}><Icon name="next" size={16} />السابق</button><button className="button button--secondary" type="button" disabled={!data.hasNext || isLoading} onClick={() => onPageChange(page + 1)}>التالي<Icon name="previous" size={16} /></button></div>
-          </div>
+
         </>
       )}
     </section>

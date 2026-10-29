@@ -58,6 +58,7 @@ export function EditInvoiceModal({ invoiceId, bookFairId, localCurrency, onClose
   const [paymentType, setPaymentType] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('')
   const [libraryName, setLibraryName] = useState('')
+  const [notes, setNotes] = useState('')
   const [billPercentage, setBillPercentage] = useState('0')
   const [billFixed, setBillFixed] = useState('0')
   const [search, setSearch] = useState('')
@@ -94,6 +95,7 @@ export function EditInvoiceModal({ invoiceId, bookFairId, localCurrency, onClose
         setPaymentType(invoice.paymentType)
         setPaymentMethod(invoice.paymentMethod || '')
         setLibraryName(invoice.libraryName || '')
+        setNotes(invoice.notes || '')
         setBillPercentage(String(invoice.invoiceDiscountPercentage ?? 0))
         setBillFixed(String(invoice.invoiceFixedDiscountAmount ?? 0))
         setState({ status: 'ready', invoice, originalQuantities, originalItems, error: '' })
@@ -122,13 +124,11 @@ export function EditInvoiceModal({ invoiceId, bookFairId, localCurrency, onClose
 
   const calculation = useMemo(() => calculateInvoice(currency, state.invoice?.currency, cart, billPercentage, billFixed),
     [currency, state.invoice?.currency, cart, billPercentage, billFixed])
-  const paidAmount = state.invoice?.paymentType === 'WHOLESALE_CREDIT'
-    ? roundMoney((state.invoice.libraryPayments || []).reduce((total, payment) => total + Number(payment.amount || 0), 0))
-    : 0
+  const postedLibraryInvoice = state.invoice?.paymentType === 'WHOLESALE_CREDIT'
   const currencyOptions = [...new Set([state.invoice?.currency, localCurrency?.code, 'USD'].filter(Boolean))]
   const canSave = state.status === 'ready' && businessDate && calculation
     && (paymentType !== 'DIRECT' || Boolean(paymentMethod))
-    && (paymentType !== 'WHOLESALE_CREDIT' || (libraryName.trim() && calculation.total >= paidAmount))
+    && (paymentType !== 'WHOLESALE_CREDIT' || libraryName.trim())
 
   const addBook = (book) => {
     const original = state.originalItems[book.id]
@@ -157,8 +157,9 @@ export function EditInvoiceModal({ invoiceId, bookFairId, localCurrency, onClose
       await updateInvoice(invoiceId, bookFairId, {
         currency,
         businessDate,
+        notes: notes.trim() || null,
         paymentType,
-        paymentMethod: paymentType === 'DIRECT' || (paymentType === 'WHOLESALE_CREDIT' && paidAmount > 0) ? paymentMethod || null : null,
+        paymentMethod: paymentType === 'DIRECT' ? paymentMethod || null : null,
         libraryName: paymentType === 'WHOLESALE_CREDIT' ? libraryName.trim() : null,
         billDiscountPercentage: Number(billPercentage || 0),
         billFixedDiscountAmount: Number(billFixed || 0),
@@ -183,8 +184,8 @@ export function EditInvoiceModal({ invoiceId, bookFairId, localCurrency, onClose
         {state.status === 'error' && <div className="book-form"><Notice tone="error" title="تعذر فتح التعديل">{state.error}</Notice><footer className="book-modal__footer"><button className="button button--secondary" type="button" onClick={onClose}>إغلاق</button></footer></div>}
         {state.status === 'ready' && <form className="book-form" onSubmit={submit}>
           <div className="invoice-edit-modal__meta"><span>رقم الفاتورة <bdi dir="ltr">{state.invoice.invoiceNumber}</bdi></span><span>نوع البيع: {state.invoice.paymentType === 'DIRECT' ? 'مباشر' : state.invoice.paymentType === 'GIFT' ? 'هدية' : 'آجل'}</span></div>
-          <Notice tone="info" title="الدفعات المسجلة محفوظة">يمكن تعديل نوع البيع وطريقة الدفع قبل تسجيل دفعات للمكتبة. بعد تسجيل دفعة، تبقى بيانات البيع والدفع كما هي.</Notice>
-          <label className="form-field invoice-edit-modal__date"><span>تاريخ الفاتورة التجاري</span><input name="invoice-business-date" type="date" dir="ltr" required value={businessDate} disabled={isBusy} onChange={(event) => { setBusinessDate(event.target.value); setSaveState({ status: 'idle', error: '' }) }} /></label>
+          <Notice tone="info" title="تحديث الفاتورة والحساب">تعديل قيمة فاتورة المكتبة بيسجل فرق القيمة في كشف الحساب. بيانات المكتبة والعملة ونوع البيع وتاريخ الفاتورة المحفوظة لا تتغير.</Notice>
+          <label className="form-field invoice-edit-modal__date"><span>تاريخ الفاتورة التجاري</span><input name="invoice-business-date" type="date" dir="ltr" required value={businessDate} disabled={isBusy || postedLibraryInvoice} onChange={(event) => { setBusinessDate(event.target.value); setSaveState({ status: 'idle', error: '' }) }} /></label>
           <div className="book-lookup invoice-edit-modal__search"><Icon name="search" size={20} /><input autoFocus type="search" value={search} disabled={isBusy} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث بأي جزء من اسم الكتاب أو الكود أو الرقم…" aria-label="البحث عن كتاب لإضافته" /></div>
           {searchState.status === 'loading' && <span className="invoice-edit-modal__search-status">جاري البحث...</span>}
           {searchState.status === 'error' && <span className="invoice-edit-modal__search-status">تعذر البحث. حاول تاني.</span>}
@@ -195,17 +196,16 @@ export function EditInvoiceModal({ invoiceId, bookFairId, localCurrency, onClose
           }) : <div className="book-suggestions__empty">مفيش كتب مطابقة.</div>}</div>}
           <InvoiceCart items={cart} currency={currency} calculation={{ items: calculation?.items || [] }} disabled={isBusy} onChange={(bookId, field, value) => { setCart((current) => current.map((line) => line.book.id === bookId ? { ...line, [field]: value } : line)); setSaveState({ status: 'idle', error: '' }) }} onRemove={(bookId) => { setCart((current) => current.filter((line) => line.book.id !== bookId)); setSaveState({ status: 'idle', error: '' }) }} localCurrency={localCurrency} />
           <div className="book-form__grid invoice-edit-modal__fields">
-            <label className="form-field"><span>عملة الفاتورة</span><select value={currency} disabled={isBusy || paidAmount > 0} onChange={(event) => { setCurrency(event.target.value); setSaveState({ status: 'idle', error: '' }) }}>{currencyOptions.map((code) => <option key={code} value={code}>{getCurrencyName(code, localCurrency)}</option>)}</select></label>
-            <label className="form-field"><span>نوع البيع</span><select value={paymentType} disabled={isBusy || paidAmount > 0} onChange={(event) => { setPaymentType(event.target.value); setPaymentMethod(''); setSaveState({ status: 'idle', error: '' }) }}><option value="DIRECT">بيع مباشر</option><option value="WHOLESALE_CREDIT">بيع آجل لمكتبة</option><option value="GIFT">هدية</option></select></label>
-            {paymentType === 'DIRECT' && <label className="form-field"><span>طريقة الدفع</span><select value={paymentMethod} disabled={isBusy} required onChange={(event) => { setPaymentMethod(event.target.value); setSaveState({ status: 'idle', error: '' }) }}><option value="">اختر طريقة الدفع</option><option value="CASH">نقدي</option><option value="VISA">فيزا</option></select></label>}
-            {paymentType === 'WHOLESALE_CREDIT' && <label className="form-field"><span>اسم المكتبة</span><input type="text" value={libraryName} disabled={isBusy || paidAmount > 0} required onChange={(event) => { setLibraryName(event.target.value); setSaveState({ status: 'idle', error: '' }) }} /></label>}
-            {paymentType === 'WHOLESALE_CREDIT' && paidAmount > 0 && <div className="form-field"><span>طريقة الدفع المسجلة</span><strong>{paymentMethod === 'CASH' ? 'نقدي' : paymentMethod === 'VISA' ? 'فيزا' : 'راجع سجل الدفعات'}</strong></div>}
+            <label className="form-field"><span>عملة الفاتورة</span><select value={currency} disabled={isBusy || postedLibraryInvoice} onChange={(event) => { setCurrency(event.target.value); setSaveState({ status: 'idle', error: '' }) }}>{currencyOptions.map((code) => <option key={code} value={code}>{getCurrencyName(code, localCurrency)}</option>)}</select></label>
+            <label className="form-field"><span>نوع البيع</span><select value={paymentType} disabled={isBusy || postedLibraryInvoice} onChange={(event) => { setPaymentType(event.target.value); setPaymentMethod(''); setSaveState({ status: 'idle', error: '' }) }}><option value="DIRECT">بيع مباشر</option><option value="WHOLESALE_CREDIT">بيع آجل لمكتبة</option><option value="GIFT">هدية</option></select></label>
+            {paymentType === 'DIRECT' && <label className="form-field"><span>طريقة الدفع</span><select value={paymentMethod} disabled={isBusy} required onChange={(event) => { setPaymentMethod(event.target.value); setSaveState({ status: 'idle', error: '' }) }}><option value="">اختر طريقة الدفع</option><option value="CASH">نقدي</option><option value="VISA">فيزا</option><option value="COUPON">كوبون</option></select></label>}
+            {paymentType === 'WHOLESALE_CREDIT' && <label className="form-field"><span>اسم المكتبة</span><input type="text" value={libraryName} disabled={isBusy || postedLibraryInvoice} required onChange={(event) => { setLibraryName(event.target.value); setSaveState({ status: 'idle', error: '' }) }} /></label>}
             <label className="form-field"><span>خصم الفاتورة %</span><input type="number" dir="ltr" min="0" max="100" step="0.01" value={billPercentage} disabled={isBusy} onChange={(event) => { setBillPercentage(event.target.value); setSaveState({ status: 'idle', error: '' }) }} /></label>
             <label className="form-field"><span>خصم ثابت ({getCurrencyName(currency, localCurrency)})</span><input type="number" dir="ltr" min="0" step="0.01" value={billFixed} disabled={isBusy} onChange={(event) => { setBillFixed(event.target.value); setSaveState({ status: 'idle', error: '' }) }} /></label>
           </div>
-          <div className="invoice-edit-modal__totals"><span>إجمالي الفاتورة <strong dir="ltr">{calculation ? formatMoney(calculation.total, currency, localCurrency) : '—'}</strong></span>{paymentType === 'WHOLESALE_CREDIT' && <><span>المدفوع سابقاً <strong dir="ltr">{formatMoney(paidAmount, currency, localCurrency)}</strong></span><span>المتبقي <strong dir="ltr">{calculation ? formatMoney(calculation.total - paidAmount, currency, localCurrency) : '—'}</strong></span></>}</div>
+          <label className="form-field invoice-notes"><span>ملاحظات الفاتورة <small>(اختياري)</small></span><textarea name="edit-invoice-notes" rows="3" maxLength="1000" value={notes} disabled={isBusy} placeholder="اكتب ملاحظة على الفاتورة..." onChange={(event) => setNotes(event.target.value)} /></label>
+          <div className="invoice-edit-modal__totals"><span>إجمالي الفاتورة <strong className={paymentType === 'GIFT' ? 'money--gift' : 'money--sale'} dir="ltr">{calculation ? formatMoney(calculation.total, currency, localCurrency) : ''}</strong></span>{paymentType === 'WHOLESALE_CREDIT' && <span>الدفعات والرصيد الحالي في كشف حساب المكتبة</span>}</div>
           {!calculation && <Notice tone="error" title="راجع الحساب">أضف كتاباً واحداً على الأقل وراجع الكميات والخصومات.</Notice>}
-          {calculation && paymentType === 'WHOLESALE_CREDIT' && calculation.total < paidAmount && <Notice tone="error" title="المبلغ المدفوع أكبر من الإجمالي">ارفع إجمالي الفاتورة إلى قيمة المدفوع سابقاً على الأقل.</Notice>}
           {saveState.error && <Notice tone="error" title="تعذر الحفظ">{saveState.error}</Notice>}
           <footer className="book-modal__footer"><button className="button button--ghost" type="button" disabled={isBusy} onClick={onClose}>إلغاء</button><button className="button button--primary" type="submit" disabled={!canSave || isBusy}>{isBusy ? <span className="spinner spinner--light" /> : <Icon name="check" size={17} />}{isBusy ? 'جاري الحفظ...' : 'حفظ التعديلات'}</button></footer>
         </form>}

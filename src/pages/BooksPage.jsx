@@ -99,7 +99,7 @@ export function BooksPage({ isActive, localCurrency, activeBookFair, dataVersion
     let active = true
     setCatalogState((current) => ({ status: 'loading', data: current.data, error: '' }))
 
-    fetchBooks({ bookFairId: activeBookFair.id, search: debouncedSearch, page, size: 25, signal: controller.signal })
+    fetchBooks({ bookFairId: activeBookFair.id, search: debouncedSearch, page, size: 7, signal: controller.signal })
       .then((response) => {
         if (active) setCatalogState({ status: 'ready', data: response.data, error: '' })
       })
