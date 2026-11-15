@@ -39,8 +39,10 @@ export default function App() {
       .then((response) => {
         const fairs = (response.data || []).map(normalizeBookFair)
         const savedId = Number(localStorage.getItem(ACTIVE_BOOK_FAIR_KEY))
+        const savedFair = fairs.find((fair) => fair.id === savedId)
+        const libyaFair = fairs.find((fair) => fair.country === 'LIBYA')
         setBookFairs(fairs)
-        setActiveBookFair(fairs.find((fair) => fair.id === savedId) || null)
+        setActiveBookFair(savedFair || libyaFair || null)
         setBookFairsState({ status: 'ready', error: '' })
       })
       .catch((error) => {

@@ -14,6 +14,8 @@ Browser-only demo of the current Tanmia POS frontend. It shares the production s
 
 No customer database or backend is contacted. Changes stay in each visitor's browser. Version 5 demo storage is upgraded without resetting existing invoices or notes; new visitors receive sample coupon and partial-return records. Older returns without documented item history remain read-only.
 
+The Libya fair is selected by default. Returning visitors keep their saved selection.
+
 ## Local development
 
 ```bash
@@ -38,12 +40,17 @@ location.reload();
 
 ## Deployment
 
-Production: https://tanmia-pos-frontend-demo-beta.vercel.app
+Production: https://tanmia-pos.kodasolutions.net
 
 Repository: https://github.com/ziadsharara/tanmia-pos-frontend-demo
 
-Vercel builds `main` using the Vite preset, `npm run build`, output `dist`. No environment variables or API server are required. Hash navigation needs no rewrites. The committed `vendor` folder supplies SheetJS for imports.
+Cloudflare Pages uses direct uploads. Build and test the demo, then deploy the `dist` folder.
 
-Build and test before pushing to `main`; then verify the GitHub/Vercel deployment status and the live site. Deploy only this demo repository. Do not publish the real frontend configuration, customer SQL, backend artifacts or credentials.
+```bash
+npm ci
+npm test
+npm run build
+npx wrangler pages deploy dist --project-name tanmia-pos-frontend-demo --branch main
+```
 
 This demo is not a shared database and is not intended for real multi-user sales.

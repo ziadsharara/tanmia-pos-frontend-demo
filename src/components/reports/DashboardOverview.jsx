@@ -79,7 +79,7 @@ function ActivityChart({ days }) {
       {points.map((point) => (
         <g key={point.date}>
           <circle cx={point.x} cy={point.y} r="4" className="dashboard-activity-chart__point" />
-          <text x={point.x} y={point.y - 10} textAnchor="middle" className="dashboard-activity-chart__count">{point.count}</text>
+          {point.count > 0 && <text x={point.x} y={point.y - 10} textAnchor="middle" className="dashboard-activity-chart__count">{point.count}</text>}
           <text x={point.x} y="170" textAnchor="middle" className="dashboard-activity-chart__date">{point.date.slice(5)}</text>
         </g>
       ))}
